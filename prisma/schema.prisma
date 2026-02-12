@@ -1,0 +1,102 @@
+// Prisma Schema - PostgreSQL
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// Enums
+enum UserRole {
+  ALUNO
+  PROFESSOR
+  ADMIN
+}
+
+enum BookingStatus {
+  PENDENTE
+  APROVADA
+  REJEITADA
+  CANCELADA
+}
+
+enum RoomType {
+  LABORATORIO
+  SALA_AULA
+  AUDITORIO
+}
+
+// Models
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  cpf       String   @unique
+  name      String
+  role      UserRole @default(ALUNO)
+  department String?
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  // Relações
+  bookingsCreated Booking[] @relation("CreatedBookings")
+  
+  @@index([email])
+  @@index([cpf])
+  @@map("users")
+}
+
+model Room {
+  id       String   @id @default(cuid())
+  name     String
+  type     RoomType
+  capacity Int
+  building String
+  floor    Int?
+  equipment String[] // Array de equipamentos
+  
+  active    Boolean @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  // Relações
+  bookings Booking[]
+  
+  @@index([type])
+  @@index([building])
+  @@map("rooms")
+}
+
+model Booking {
+  id        String        @id @default(cuid())
+  
+  // Informações da reserva
+  course    String
+  startTime String // Formato: "HH:MM"
+  endTime   String // Formato: "HH:MM"
+  date      DateTime // Data da reserva
+  students  Int
+  notes     String?
+  
+  // Status e aprovação
+  status    BookingStatus @default(PENDENTE)
+  
+  // Relações
+  roomId    String
+  room      Room   @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  
+  professorId String
+  professor   User   @relation("CreatedBookings", fields: [professorId], references: [id], onDelete: Cascade)
+  
+  // Metadados
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  @@index([date])
+  @@index([status])
+  @@index([roomId])
+  @@index([professorId])
+  @@map("bookings")
+}

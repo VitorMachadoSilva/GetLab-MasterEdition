@@ -1,0 +1,39 @@
+{
+  "name": "sistema-reservas-fmpsc",
+  "version": "2.0.0",
+  "description": "Sistema completo de reservas de salas FMPSC com autenticação e PostgreSQL",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint",
+    "db:generate": "prisma generate",
+    "db:push": "prisma db push",
+    "db:studio": "prisma studio"
+  },
+  "dependencies": {
+    "next": "^14.2.0",
+    "react": "^18.3.0",
+    "react-dom": "^18.3.0",
+    "@prisma/client": "^5.9.0",
+    "bcryptjs": "^2.4.3",
+    "next-auth": "^4.24.5",
+    "lucide-react": "^0.263.1",
+    "date-fns": "^3.0.0",
+    "react-hot-toast": "^2.4.1"
+  },
+  "devDependencies": {
+    "@types/node": "^20",
+    "@types/react": "^18",
+    "@types/react-dom": "^18",
+    "@types/bcryptjs": "^2.4.6",
+    "autoprefixer": "^10.0.1",
+    "eslint": "^8",
+    "eslint-config-next": "14.2.0",
+    "postcss": "^8",
+    "tailwindcss": "^3.4.0",
+    "typescript": "^5",
+    "prisma": "^5.9.0"
+  }
+}
