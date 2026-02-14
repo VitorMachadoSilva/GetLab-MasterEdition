@@ -57,15 +57,7 @@ export default function LoginPage() {
       <div className="relative z-10 w-full max-w-md animate-scale-in">
         {/* Logo Section */}
         <div className="text-center mb-8">
-          <div className="inline-block relative group mb-6">
-            <div className="absolute inset-0 bg-white/30 rounded-3xl blur-2xl group-hover:blur-3xl transition-all"></div>
-            <div className="relative glass px-8 py-6 rounded-3xl">
-              <div className="flex items-center justify-center gap-3">
-                <Sparkles className="text-white" size={48} />
-                <LogIn className="text-white" size={48} />
-              </div>
-            </div>
-          </div>
+
           
           <h1 className="text-5xl font-black text-white mb-3 tracking-tight">
             Sistema de Reservas
