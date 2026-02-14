@@ -63,7 +63,9 @@ export default function NovaReservaPage() {
 
     // Validação de data/hora: mínimo 24h de antecedência
     if (formData.startTime) {
-      const selectedDate = new Date(formData.date);
+      // Criar data no timezone local (sem conversão UTC)
+      const [year, month, day] = formData.date.split('-').map(Number);
+      const selectedDate = new Date(year, month - 1, day);
       const [startH, startM] = formData.startTime.split(':').map(Number);
       
       // Criar data/hora completa da reserva

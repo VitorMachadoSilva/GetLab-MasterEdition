@@ -54,12 +54,18 @@ export async function PATCH(
     }
 
     const body = await request.json();
-    const { name, department, role } = body;
+    const { name, department, role, email, cpf } = body;
 
     const updateData: any = {};
     if (name) updateData.name = name;
     if (department !== undefined) updateData.department = department;
-    if (role && session.user.role === 'ADMIN') updateData.role = role;
+    
+    // Admin pode alterar role, email e cpf
+    if (session.user.role === 'ADMIN') {
+      if (role) updateData.role = role;
+      if (email) updateData.email = email;
+      if (cpf) updateData.cpf = cpf;
+    }
 
     const user = await prisma.user.update({
       where: { id: params.id },
@@ -70,6 +76,7 @@ export async function PATCH(
         name: true,
         role: true,
         department: true,
+        cpf: true,
       },
     });
 

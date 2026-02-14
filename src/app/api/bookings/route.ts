@@ -19,9 +19,16 @@ export async function GET(request: NextRequest) {
 
     const where: any = {};
 
-    // Filtrar por data
+    // Filtrar por data - usa range para pegar qualquer hora do dia
     if (date) {
-      where.date = new Date(date);
+      const [year, month, day] = date.split('-').map(Number);
+      const startDate = new Date(year, month - 1, day, 0, 0, 0, 0);
+      const endDate = new Date(year, month - 1, day, 23, 59, 59, 999);
+      
+      where.date = {
+        gte: startDate,
+        lte: endDate,
+      };
     }
 
     // Filtrar por status
@@ -108,7 +115,10 @@ export async function POST(request: NextRequest) {
     }
 
     // Verificar conflitos de horário
-    const dateObj = new Date(date);
+    // Cria data no formato local sem conversão UTC
+    const [year, month, day] = date.split('-').map(Number);
+    const dateObj = new Date(year, month - 1, day);
+    
     const conflicts = await prisma.booking.findMany({
       where: {
         roomId,

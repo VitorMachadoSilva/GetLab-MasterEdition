@@ -44,7 +44,6 @@ export const authOptions: NextAuthOptions = {
             email: admin.email,
             name: admin.name,
             role: admin.role,
-            department: admin.department ?? undefined, // 🔥 Adicionar isso
           };
         }
 
@@ -66,6 +65,7 @@ export const authOptions: NextAuthOptions = {
         }
 
         // Verificar CPF (senha)
+        // Remove pontos, traços e espaços do CPF
         const cpfLimpo = cpf.replace(/[.\-\s]/g, '');
         const cpfBancoLimpo = user.cpf.replace(/[.\-\s]/g, '');
 
@@ -78,7 +78,7 @@ export const authOptions: NextAuthOptions = {
           email: user.email,
           name: user.name,
           role: user.role,
-          department: user.department ?? undefined, // 🔥 Converter null para undefined
+          department: user.department,
         };
       },
     }),
@@ -96,7 +96,7 @@ export const authOptions: NextAuthOptions = {
       if (session.user) {
         session.user.id = token.id as string;
         session.user.role = token.role as string;
-        session.user.department = token.department as string | undefined; // 🔥 Ajustar tipo
+        session.user.department = token.department as string;
       }
       return session;
     },

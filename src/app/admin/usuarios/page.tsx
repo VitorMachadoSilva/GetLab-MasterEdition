@@ -235,10 +235,8 @@ export default function GerenciarUsuariosPage() {
                     value={formData.email} 
                     onChange={(e) => setFormData({...formData, email: e.target.value})} 
                     required 
-                    disabled={!!editingUser}
-                    className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-primary-500 focus:ring-4 focus:ring-primary-100 outline-none disabled:bg-gray-100 disabled:cursor-not-allowed" 
+                    className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-primary-500 focus:ring-4 focus:ring-primary-100 outline-none" 
                   />
-                  {editingUser && <p className="text-xs text-gray-500 mt-1">Email não pode ser alterado</p>}
                 </div>
 
                 <div>
@@ -249,11 +247,10 @@ export default function GerenciarUsuariosPage() {
                     value={formData.cpf} 
                     onChange={(e) => setFormData({...formData, cpf: e.target.value})} 
                     required 
-                    disabled={!!editingUser}
                     maxLength={11}
-                    className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-primary-500 focus:ring-4 focus:ring-primary-100 outline-none disabled:bg-gray-100 disabled:cursor-not-allowed" 
+                    className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-primary-500 focus:ring-4 focus:ring-primary-100 outline-none" 
                   />
-                  {editingUser && <p className="text-xs text-gray-500 mt-1">CPF não pode ser alterado (usado como senha)</p>}
+                  {editingUser && <p className="text-xs text-orange-600 mt-1 font-semibold">⚠️ Alterar CPF mudará a senha de acesso do usuário</p>}
                 </div>
 
                 <div>
