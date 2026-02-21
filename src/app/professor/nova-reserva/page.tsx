@@ -33,10 +33,33 @@ export default function NovaReservaPage() {
     course: '',
     startTime: '',
     endTime: '',
-    date: new Date(Date.now() + 86400000).toISOString().split('T')[0], // Tomorrow
+    date: '', // Será preenchido após sincronizar com servidor
     students: '',
     notes: '',
   });
+
+  // Inicializar data de amanhã usando horário do servidor
+  useEffect(() => {
+    const initializeDate = async () => {
+      try {
+        const res = await fetch('/api/time');
+        const serverTime = await res.json();
+        const tomorrow = new Date(serverTime.timestamp + 86400000); // +1 dia
+        const year = tomorrow.getFullYear();
+        const month = String(tomorrow.getMonth() + 1).padStart(2, '0');
+        const day = String(tomorrow.getDate()).padStart(2, '0');
+        setFormData(prev => ({ ...prev, date: `${year}-${month}-${day}` }));
+      } catch (error) {
+        // Fallback para horário local
+        const tomorrow = new Date(Date.now() + 86400000);
+        const year = tomorrow.getFullYear();
+        const month = String(tomorrow.getMonth() + 1).padStart(2, '0');
+        const day = String(tomorrow.getDate()).padStart(2, '0');
+        setFormData(prev => ({ ...prev, date: `${year}-${month}-${day}` }));
+      }
+    };
+    initializeDate();
+  }, []);
 
   useEffect(() => {
     fetchRooms();
@@ -58,27 +81,35 @@ export default function NovaReservaPage() {
     }
   };
 
-  const validateForm = (): boolean => {
+  const validateForm = async (): Promise<boolean> => {
     const newErrors: {[key: string]: string} = {};
 
-    // Validação de data/hora: mínimo 24h de antecedência
+    // Validação de data/hora: mínimo 24h de antecedência (usando horário do servidor)
     if (formData.startTime) {
-      // Criar data no timezone local (sem conversão UTC)
-      const [year, month, day] = formData.date.split('-').map(Number);
-      const selectedDate = new Date(year, month - 1, day);
-      const [startH, startM] = formData.startTime.split(':').map(Number);
-      
-      // Criar data/hora completa da reserva
-      const bookingDateTime = new Date(selectedDate);
-      bookingDateTime.setHours(startH, startM, 0, 0);
-      
-      const now = new Date();
-      const hoursDiff = (bookingDateTime.getTime() - now.getTime()) / (1000 * 60 * 60);
-      
-      if (hoursDiff < 24) {
-        newErrors.date = 'Mínimo 24h de antecedência';
-        newErrors.startTime = 'Mínimo 24h de antecedência';
-        toast.error('⚠️ A reserva deve ser feita com no mínimo 24 horas de antecedência');
+      try {
+        // Buscar horário do servidor
+        const res = await fetch('/api/time');
+        const serverTime = await res.json();
+        const now = new Date(serverTime.timestamp);
+        
+        // Criar data no timezone local (sem conversão UTC)
+        const [year, month, day] = formData.date.split('-').map(Number);
+        const selectedDate = new Date(year, month - 1, day);
+        const [startH, startM] = formData.startTime.split(':').map(Number);
+        
+        // Criar data/hora completa da reserva
+        const bookingDateTime = new Date(selectedDate);
+        bookingDateTime.setHours(startH, startM, 0, 0);
+        
+        const hoursDiff = (bookingDateTime.getTime() - now.getTime()) / (1000 * 60 * 60);
+        
+        if (hoursDiff < 24) {
+          newErrors.date = 'Mínimo 24h de antecedência';
+          newErrors.startTime = 'Mínimo 24h de antecedência';
+          toast.error('⚠️ A reserva deve ser feita com no mínimo 24 horas de antecedência');
+        }
+      } catch (error) {
+        console.error('Erro ao validar horário:', error);
       }
     }
 
@@ -117,7 +148,8 @@ export default function NovaReservaPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!validateForm()) {
+    const isValid = await validateForm();
+    if (!isValid) {
       return;
     }
 

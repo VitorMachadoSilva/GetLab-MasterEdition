@@ -83,6 +83,21 @@ export async function DELETE(
       );
     }
 
+    // ✅ Verificar se a reserva já foi finalizada
+    // Usar toISOString().split('T')[0] para evitar problemas de timezone UTC vs local
+    const isoDate = booking.date.toISOString().split('T')[0]; // "2026-02-20"
+    const [year, month, day] = isoDate.split('-').map(Number);
+    const [hours, minutes] = booking.endTime.split(':').map(Number);
+
+    const bookingEnd = new Date(year, month - 1, day, hours, minutes, 0, 0);
+
+    if (new Date() > bookingEnd) {
+      return NextResponse.json(
+        { error: 'Não é possível excluir uma reserva já finalizada' },
+        { status: 400 }
+      );
+    }
+
     await prisma.booking.delete({
       where: { id: params.id },
     });

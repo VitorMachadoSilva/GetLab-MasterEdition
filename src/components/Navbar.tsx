@@ -5,7 +5,7 @@ import { usePathname } from 'next/navigation';
 import { useSession, signOut } from 'next-auth/react';
 import { Calendar, User, LogOut, Home, PlusCircle, FileText, Shield, MapPin, Monitor } from 'lucide-react';
 
-export default function Navbar() {
+export default function   Navbar() {
   const pathname = usePathname();
   const { data: session, status } = useSession();
 
@@ -46,7 +46,7 @@ export default function Navbar() {
           </Link>
 
           {/* Nav Items */}
-          <div className="flex items-center gap-1">
+          <div className="flex items-center gap-2 mgl-2">
             {navItems.filter(item => item.show).map((item) => {
               const Icon = item.icon;
               const isActive = pathname === item.href;

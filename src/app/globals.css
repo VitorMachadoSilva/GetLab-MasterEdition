@@ -209,3 +209,126 @@ body {
   animation: pulse-glow 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
 }
 
+/* ===================================
+   RESPONSIVIDADE 1366x768 (Notebooks)
+   =================================== */
+
+@media (max-width: 1400px) {
+  /* Reduzir espaçamentos gerais */
+  .max-w-7xl {
+    max-width: 1280px;
+  }
+
+  /* Headers menores */
+  h1 {
+    font-size: clamp(1.5rem, 3vw, 2.5rem) !important;
+  }
+
+  h2 {
+    font-size: clamp(1.25rem, 2.5vw, 2rem) !important;
+  }
+
+  h3 {
+    font-size: clamp(1.125rem, 2vw, 1.5rem) !important;
+  }
+
+  /* Cards mais compactos */
+  .glass, .glass-dark {
+    padding: clamp(0.75rem, 2vw, 1.25rem);
+  }
+
+  /* Botões menores */
+  button {
+    padding: clamp(0.5rem, 1.5vw, 0.75rem) clamp(0.75rem, 2vw, 1.25rem);
+    font-size: clamp(0.875rem, 1.5vw, 1rem);
+  }
+
+  /* Tabelas mais compactas */
+  table th,
+  table td {
+    padding: clamp(0.5rem, 1.5vw, 0.75rem) clamp(0.75rem, 2vw, 1rem) !important;
+    font-size: clamp(0.8125rem, 1.5vw, 0.875rem);
+  }
+
+  /* Inputs menores */
+  input,
+  select,
+  textarea {
+    padding: clamp(0.5rem, 1.5vw, 0.75rem) clamp(0.75rem, 2vw, 1rem);
+    font-size: clamp(0.875rem, 1.5vw, 1rem);
+  }
+
+  /* Reduzir margens */
+  .mb-8 {
+    margin-bottom: 1.5rem;
+  }
+
+  .mb-6 {
+    margin-bottom: 1rem;
+  }
+
+  .mb-4 {
+    margin-bottom: 0.75rem;
+  }
+
+  /* Gap menor em grids */
+  .gap-6 {
+    gap: 1rem;
+  }
+
+  .gap-4 {
+    gap: 0.75rem;
+  }
+
+  /* Reduzir padding de containers */
+  .p-8 {
+    padding: 1.5rem;
+  }
+
+  .p-6 {
+    padding: 1.25rem;
+  }
+
+  .p-5 {
+    padding: 1rem;
+  }
+
+  .p-4 {
+    padding: 0.75rem;
+  }
+}
+
+@media (max-width: 1920px) {
+  /* Ajustes específicos para 1366x768 */
+  body {
+    font-size: 14px;
+  }
+
+  /* Tutorial button menor */
+  .fixed.bottom-6.right-6 button {
+    width: 4rem;
+    height: 4rem;
+  }
+
+  /* Cards de aula em andamento mais compactos */
+  .text-2xl {
+    font-size: 1.25rem !important;
+  }
+
+  .text-xl {
+    font-size: 1.125rem !important;
+  }
+
+  /* Relógio dashboard */
+  .text-3xl {
+    font-size: 1.5rem !important;
+  }
+
+  .text-4xl {
+    font-size: 1.75rem !important;
+  }
+
+  .text-5xl {
+    font-size: 2rem !important;
+  }
+}

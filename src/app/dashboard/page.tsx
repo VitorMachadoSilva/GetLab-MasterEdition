@@ -8,6 +8,7 @@ import { LoadingSpinner } from '@/components/Loading';
 import CustomJoyride from '@/components/CustomJoyride';
 import TutorialButton from '@/components/TutorialButton';
 import { useTutorial } from '@/hooks/useTutorial';
+import { useServerTime } from '@/hooks/useServerTime';
 
 interface Booking {
   id: string;
@@ -24,26 +25,16 @@ export default function DashboardPage() {
   const { data: session } = useSession();
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [loading, setLoading] = useState(true);
-  const [currentTime, setCurrentTime] = useState(new Date());
   
-  // Helper: pega data local sem UTC
-  const getLocalDateString = () => {
-    const d = new Date();
-    const year = d.getFullYear();
-    const month = String(d.getMonth() + 1).padStart(2, '0');
-    const day = String(d.getDate()).padStart(2, '0');
-    return `${year}-${month}-${day}`;
-  };
-  
-  const [selectedDate, setSelectedDate] = useState(getLocalDateString());
+  // Usar horário do servidor (sempre correto)
+  const { currentTime, getLocalDateString } = useServerTime();
+  const [selectedDate, setSelectedDate] = useState(() => getLocalDateString());
 
   // Tutorial
   const { run, steps, handleJoyrideCallback, startTutorial } = useTutorial(session?.user?.role);
 
   useEffect(() => {
     fetchTodayBookings();
-    const timer = setInterval(() => setCurrentTime(new Date()), 1000);
-    return () => clearInterval(timer);
   }, [selectedDate]);
 
   const fetchTodayBookings = async () => {
@@ -62,7 +53,18 @@ export default function DashboardPage() {
     return now >= startTime && now < endTime;
   };
 
-  const getCurrentClass = () => bookings.find(b => isCurrentlyHappening(b.startTime, b.endTime));
+  const isPast = (endTime: string) => {
+    const now = currentTime.toTimeString().slice(0, 5);
+    return now >= endTime;
+  };
+
+  const getStatus = (startTime: string, endTime: string) => {
+    if (isCurrentlyHappening(startTime, endTime)) return 'EM_ANDAMENTO';
+    if (isPast(endTime)) return 'FINALIZADA';
+    return 'AGENDADA';
+  };
+
+  const getCurrentClasses = () => bookings.filter(b => isCurrentlyHappening(b.startTime, b.endTime));
   const getUpcomingClasses = () => {
     const now = currentTime.toTimeString().slice(0, 5);
     return bookings.filter(b => b.startTime > now).sort((a, b) => a.startTime.localeCompare(b.startTime)).slice(0, 5);
@@ -70,7 +72,7 @@ export default function DashboardPage() {
 
   if (loading) return <LoadingSpinner />;
 
-  const currentClass = getCurrentClass();
+  const currentClasses = getCurrentClasses();
   const upcomingClasses = getUpcomingClasses();
 
   return (
@@ -136,45 +138,54 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        {/* Current Class - COMPACTO */}
-        {currentClass && (
+        {/* Current Classes - MÚLTIPLAS AULAS EM ANDAMENTO */}
+        {currentClasses.length > 0 && (
           <div className="mb-6 animate-scale-in" data-tour="current-class">
-            <div className="relative overflow-hidden rounded-2xl">
-              <div className="absolute inset-0 bg-gradient-to-br from-green-500 to-emerald-600 opacity-90"></div>
-              
-              <div className="relative p-5 text-white">
-                <div className="flex items-center gap-2 mb-3">
-                  <div className="pulse-live bg-white w-3 h-3 rounded-full"></div>
-                  <span className="text-sm font-black uppercase tracking-wider">🔴 Aula em Andamento</span>
+            <h3 className="text-xl font-black text-gray-800 mb-3 flex items-center gap-2">
+              <span className="pulse-live bg-green-500 w-3 h-3 rounded-full"></span>
+              Aulas em Andamento ({currentClasses.length})
+            </h3>
+            
+            <div className="space-y-3">
+              {currentClasses.map((booking, index) => (
+                <div key={booking.id} className="relative overflow-hidden rounded-2xl" style={{ animationDelay: `${index * 0.1}s` }}>
+                  <div className="absolute inset-0 bg-gradient-to-br from-green-500 to-emerald-600 opacity-90"></div>
+                  
+                  <div className="relative p-5 text-white">
+                    <div className="flex items-center gap-2 mb-3">
+                      <div className="pulse-live bg-white w-3 h-3 rounded-full"></div>
+                      <span className="text-sm font-black uppercase tracking-wider">🔴 Em Andamento</span>
+                    </div>
+                    
+                    <h2 className="text-2xl font-black mb-4 tracking-tight">{booking.course}</h2>
+                    
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                      <div className="glass-dark p-3 rounded-xl">
+                        <div className="flex items-center gap-2 mb-1">
+                          <Users size={18} className="opacity-90" />
+                          <div className="text-xs opacity-80">Professor</div>
+                        </div>
+                        <div className="text-base font-bold">{booking.professor.name}</div>
+                      </div>
+                      <div className="glass-dark p-3 rounded-xl">
+                        <div className="flex items-center gap-2 mb-1">
+                          <MapPin size={18} className="opacity-90" />
+                          <div className="text-xs opacity-80">Local</div>
+                        </div>
+                        <div className="text-base font-bold">{booking.room.name}</div>
+                        <div className="text-xs opacity-70">{booking.room.building}</div>
+                      </div>
+                      <div className="glass-dark p-3 rounded-xl">
+                        <div className="flex items-center gap-2 mb-1">
+                          <Clock size={18} className="opacity-90" />
+                          <div className="text-xs opacity-80">Horário</div>
+                        </div>
+                        <div className="text-base font-bold">{booking.startTime} - {booking.endTime}</div>
+                      </div>
+                    </div>
+                  </div>
                 </div>
-                
-                <h2 className="text-2xl font-black mb-4 tracking-tight">{currentClass.course}</h2>
-                
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                  <div className="glass-dark p-3 rounded-xl">
-                    <div className="flex items-center gap-2 mb-1">
-                      <Users size={18} className="opacity-90" />
-                      <div className="text-xs opacity-80">Professor</div>
-                    </div>
-                    <div className="text-base font-bold">{currentClass.professor.name}</div>
-                  </div>
-                  <div className="glass-dark p-3 rounded-xl">
-                    <div className="flex items-center gap-2 mb-1">
-                      <MapPin size={18} className="opacity-90" />
-                      <div className="text-xs opacity-80">Local</div>
-                    </div>
-                    <div className="text-base font-bold">{currentClass.room.name}</div>
-                    <div className="text-xs opacity-70">{currentClass.room.building}</div>
-                  </div>
-                  <div className="glass-dark p-3 rounded-xl">
-                    <div className="flex items-center gap-2 mb-1">
-                      <Clock size={18} className="opacity-90" />
-                      <div className="text-xs opacity-80">Horário</div>
-                    </div>
-                    <div className="text-base font-bold">{currentClass.startTime} - {currentClass.endTime}</div>
-                  </div>
-                </div>
-              </div>
+              ))}
             </div>
           </div>
         )}
@@ -223,7 +234,7 @@ export default function DashboardPage() {
             <div className="glass rounded-2xl p-8 text-center shadow-modern">
               <Calendar size={48} className="mx-auto mb-2 text-gray-300" />
               <p className="text-base text-gray-400 font-semibold">
-                {currentClass ? 'Sem mais aulas hoje' : 'Nenhuma aula programada'}
+                {currentClasses.length > 0 ? 'Sem mais aulas hoje' : 'Nenhuma aula programada'}
               </p>
             </div>
           )}
@@ -237,6 +248,7 @@ export default function DashboardPage() {
               <table className="w-full">
                 <thead>
                   <tr className="bg-gradient-to-r from-primary-500 to-secondary-500 text-white">
+                    <th className="px-4 py-2 text-left font-bold text-xs uppercase">Status</th>
                     <th className="px-4 py-2 text-left font-bold text-xs uppercase">Horário</th>
                     <th className="px-4 py-2 text-left font-bold text-xs uppercase">Disciplina</th>
                     <th className="px-4 py-2 text-left font-bold text-xs uppercase">Professor</th>
@@ -245,27 +257,48 @@ export default function DashboardPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {bookings.map((booking) => (
-                    <tr
-                      key={booking.id}
-                      className={`border-b border-gray-100 hover:bg-primary-50 transition-colors ${
-                        isCurrentlyHappening(booking.startTime, booking.endTime) ? 'bg-green-50' : ''
-                      }`}
-                    >
-                      <td className="px-4 py-2">
-                        <div className="font-bold text-sm text-gray-800 whitespace-nowrap">{booking.startTime} - {booking.endTime}</div>
-                      </td>
-                      <td className="px-4 py-2">
-                        <div className="font-semibold text-sm text-gray-800">{booking.course}</div>
-                      </td>
-                      <td className="px-4 py-2 text-sm text-gray-600">{booking.professor.name}</td>
-                      <td className="px-4 py-2">
-                        <div className="font-semibold text-sm">{booking.room.name}</div>
-                        <div className="text-xs text-gray-500">{booking.room.building}</div>
-                      </td>
-                      <td className="px-4 py-2 text-sm text-gray-600">{booking.students}</td>
-                    </tr>
-                  ))}
+                  {bookings.map((booking) => {
+                    const status = getStatus(booking.startTime, booking.endTime);
+                    return (
+                      <tr
+                        key={booking.id}
+                        className={`border-b border-gray-100 hover:bg-primary-50 transition-colors ${
+                          status === 'EM_ANDAMENTO' ? 'bg-green-50' : status === 'FINALIZADA' ? 'bg-gray-50' : ''
+                        }`}
+                      >
+                        <td className="px-4 py-2">
+                          {status === 'EM_ANDAMENTO' && (
+                            <span className="inline-flex items-center gap-1 px-2 py-1 bg-green-500 text-white text-xs font-bold rounded-full">
+                              <span className="w-2 h-2 bg-white rounded-full animate-pulse"></span>
+                              Em Andamento
+                            </span>
+                          )}
+                          {status === 'AGENDADA' && (
+                            <span className="inline-flex items-center gap-1 px-2 py-1 bg-blue-500 text-white text-xs font-bold rounded-full">
+                              ⏰ Agendada
+                            </span>
+                          )}
+                          {status === 'FINALIZADA' && (
+                            <span className="inline-flex items-center gap-1 px-2 py-1 bg-gray-400 text-white text-xs font-bold rounded-full">
+                              ✓ Finalizada
+                            </span>
+                          )}
+                        </td>
+                        <td className="px-4 py-2">
+                          <div className="font-bold text-sm text-gray-800 whitespace-nowrap">{booking.startTime} - {booking.endTime}</div>
+                        </td>
+                        <td className="px-4 py-2">
+                          <div className="font-semibold text-sm text-gray-800">{booking.course}</div>
+                        </td>
+                        <td className="px-4 py-2 text-sm text-gray-600">{booking.professor.name}</td>
+                        <td className="px-4 py-2">
+                          <div className="font-semibold text-sm">{booking.room.name}</div>
+                          <div className="text-xs text-gray-500">{booking.room.building}</div>
+                        </td>
+                        <td className="px-4 py-2 text-sm text-gray-600">{booking.students}</td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>

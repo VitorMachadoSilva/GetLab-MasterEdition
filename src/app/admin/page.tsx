@@ -4,12 +4,26 @@ import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { Users, Calendar, Check, X, Trash2, RefreshCw, UserPlus } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { useServerTime } from '@/hooks/useServerTime';
 
 export default function AdminPage() {
   const [activeTab, setActiveTab] = useState<'bookings' | 'users'>('bookings');
   const [bookings, setBookings] = useState<any[]>([]);
   const [users, setUsers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  
+  // Usar horário do servidor
+  const { currentTime } = useServerTime();
+
+  // Helper: verificar se reserva já passou (data + hora)
+  const isBookingPast = (date: string, endTime: string) => {
+    const [year, month, day] = date.split('-').map(Number);
+    const [hours, minutes] = endTime.split(':').map(Number);
+    
+    const bookingEndDateTime = new Date(year, month - 1, day, hours, minutes, 0, 0);
+    
+    return currentTime > bookingEndDateTime;
+  };
 
   useEffect(() => {
     fetchData();
@@ -237,9 +251,15 @@ export default function AdminPage() {
                         </span>
                       </td>
                       <td className="px-6 py-4">
-                        <button onClick={() => handleDeleteBooking(booking.id)} className="text-red-500 hover:text-red-700">
-                          <Trash2 size={18} />
-                        </button>
+                        {isBookingPast(booking.date, booking.endTime) ? (
+                          <span className="px-3 py-1 bg-gray-200 text-gray-600 font-semibold rounded text-sm">
+                            ✓ Finalizada
+                          </span>
+                        ) : (
+                          <button onClick={() => handleDeleteBooking(booking.id)} className="text-red-500 hover:text-red-700">
+                            <Trash2 size={18} />
+                          </button>
+                        )}
                       </td>
                     </tr>
                   ))}

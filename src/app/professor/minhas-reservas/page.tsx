@@ -5,6 +5,7 @@ import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import { Calendar, Clock, MapPin, Users, Trash2, RefreshCw, Filter } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { useServerTime } from '@/hooks/useServerTime';
 
 interface Booking {
   id: string;
@@ -36,6 +37,26 @@ export default function MinhasReservasPage() {
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<'TODAS' | 'PENDENTE' | 'APROVADA' | 'REJEITADA'>('TODAS');
+
+  const { getNow, getLocalDateString } = useServerTime();
+
+  // Compara strings de horário para evitar bug de timezone
+  const isBookingPast = (date: string, endTime: string) => {
+    const isoDate = date.includes('T') ? date.split('T')[0] : date; // "2026-02-20"
+    const todayStr = getLocalDateString(); // "2026-02-20"
+
+    // Data anterior a hoje → sempre finalizada
+    if (isoDate < todayStr) return true;
+
+    // Hoje → compara o horário atual em tempo real via getNow() (sem stale state)
+    if (isoDate === todayStr) {
+      const now = getNow().toTimeString().slice(0, 5); // "20:30"
+      return now >= endTime; // "20:30" >= "17:00" → true ✅
+    }
+
+    // Data futura → não finalizada
+    return false;
+  };
 
   useEffect(() => {
     if (session?.user?.id) {
@@ -71,7 +92,8 @@ export default function MinhasReservasPage() {
         toast.success('Reserva excluída com sucesso');
         fetchMyBookings();
       } else {
-        toast.error('Erro ao excluir reserva');
+        const data = await res.json();
+        toast.error(data.error || 'Erro ao excluir reserva');
       }
     } catch (error) {
       toast.error('Erro ao excluir reserva');
@@ -104,15 +126,17 @@ export default function MinhasReservasPage() {
     }
   };
 
+  const activeBookings = bookings.filter(b => !isBookingPast(b.date, b.endTime));
+
   const filteredBookings = filter === 'TODAS'
-    ? bookings
-    : bookings.filter(b => b.status === filter);
+    ? activeBookings
+    : activeBookings.filter(b => b.status === filter);
 
   const stats = {
-    total: bookings.length,
-    pendentes: bookings.filter(b => b.status === 'PENDENTE').length,
-    aprovadas: bookings.filter(b => b.status === 'APROVADA').length,
-    rejeitadas: bookings.filter(b => b.status === 'REJEITADA').length,
+    total: activeBookings.length,
+    pendentes: activeBookings.filter(b => b.status === 'PENDENTE').length,
+    aprovadas: activeBookings.filter(b => b.status === 'APROVADA').length,
+    rejeitadas: activeBookings.filter(b => b.status === 'REJEITADA').length,
   };
 
   if (loading) {
@@ -270,12 +294,12 @@ export default function MinhasReservasPage() {
 
                   <div className="flex lg:flex-col gap-2">
                     <button
-                      onClick={() => handleDelete(booking.id)}
-                      className="px-4 py-2 bg-red-500 hover:bg-red-600 text-white font-semibold rounded-lg transition-colors flex items-center justify-center gap-2"
-                    >
-                      <Trash2 size={16} />
-                      Excluir
-                    </button>
+                        onClick={() => handleDelete(booking.id)}
+                        className="px-4 py-2 bg-red-500 hover:bg-red-600 text-white font-semibold rounded-lg transition-colors flex items-center justify-center gap-2"
+                      >
+                        <Trash2 size={16} />
+                        Excluir
+                      </button>
                   </div>
                 </div>
               </div>

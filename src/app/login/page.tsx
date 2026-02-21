@@ -3,12 +3,13 @@
 import { useState } from 'react';
 import { signIn } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
-import { LogIn, Mail, Lock, AlertCircle, Sparkles } from 'lucide-react';
+import { LogIn, Mail, Lock, AlertCircle, Sparkles, Eye, EyeOff } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 export default function LoginPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
   const [formData, setFormData] = useState({ email: '', password: '' });
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -57,7 +58,15 @@ export default function LoginPage() {
       <div className="relative z-10 w-full max-w-md animate-scale-in">
         {/* Logo Section */}
         <div className="text-center mb-8">
-
+          <div className="inline-block relative group mb-6">
+            <div className="absolute inset-0 bg-white/30 rounded-3xl blur-2xl group-hover:blur-3xl transition-all"></div>
+            <div className="relative glass px-8 py-6 rounded-3xl">
+              <div className="flex items-center justify-center gap-3">
+                <Sparkles className="text-white" size={48} />
+                <LogIn className="text-white" size={48} />
+              </div>
+            </div>
+          </div>
           
           <h1 className="text-5xl font-black text-white mb-3 tracking-tight">
             Sistema de Reservas
@@ -96,13 +105,21 @@ export default function LoginPage() {
                     <Lock className="text-gray-400 group-hover:text-primary-500 transition-colors" size={20} />
                   </div>
                   <input
-                    type="password"
+                    type={showPassword ? "text" : "password"}
                     value={formData.password}
                     onChange={(e) => setFormData({ ...formData, password: e.target.value })}
                     placeholder="Seu CPF (sem pontos)"
                     required
-                    className="input-modern w-full pl-12 pr-4 py-4 border-2 border-gray-200 rounded-xl font-medium focus:border-primary-500 transition-all"
+                    className="input-modern w-full pl-12 pr-12 py-4 border-2 border-gray-200 rounded-xl font-medium focus:border-primary-500 transition-all"
                   />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute inset-y-0 right-0 pr-4 flex items-center text-gray-400 hover:text-primary-500 transition-colors"
+                    tabIndex={-1}
+                  >
+                    {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+                  </button>
                 </div>
               </div>
 

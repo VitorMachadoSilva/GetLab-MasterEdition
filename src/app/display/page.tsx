@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { MapPin, Clock, Users, Calendar, Maximize, Minimize } from 'lucide-react';
+import { useServerTime } from '@/hooks/useServerTime';
 
 interface Booking {
   id: string;
@@ -16,14 +17,15 @@ interface Booking {
 
 export default function DisplayPage() {
   const [bookings, setBookings] = useState<Booking[]>([]);
-  const [currentTime, setCurrentTime] = useState(new Date());
   const [loading, setLoading] = useState(true);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  
+  // Usar horário do servidor
+  const { currentTime, getLocalDateString } = useServerTime();
 
   useEffect(() => {
     fetchBookings();
     const timer = setInterval(() => {
-      setCurrentTime(new Date());
       fetchBookings();
     }, 30000); // Atualiza a cada 30 segundos
     
@@ -32,8 +34,7 @@ export default function DisplayPage() {
 
   const fetchBookings = async () => {
     try {
-      const d = new Date();
-      const today = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+      const today = getLocalDateString();
       
       const res = await fetch(`/api/bookings?date=${today}&status=APROVADA`);
       if (res.ok) {
