@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { ChevronLeft, ChevronRight, X, Calendar as CalendarIcon, Clock, MapPin, Users } from 'lucide-react';
+import { ChevronLeft, ChevronRight, X, Calendar as CalendarIcon, Clock, MapPin, Users, Calendar } from 'lucide-react';
 import { useServerTime } from '@/hooks/useServerTime';
 
 interface Booking {
@@ -171,8 +171,9 @@ export default function CalendarioPage() {
       <div className="max-w-7xl mx-auto">
         {/* Header */}
         <div className="mb-6 text-center">
+          <CalendarIcon size={48} className="mx-auto mb-2 text-primary-500" />
           <h1 className="text-4xl font-black text-gradient-vibrant mb-2">
-            📅 Calendário de Reservas
+             Calendário de Reservas
           </h1>
           <p className="text-gray-600">Visualize todas as reservas do mês</p>
         </div>
