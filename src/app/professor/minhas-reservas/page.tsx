@@ -37,25 +37,18 @@ export default function MinhasReservasPage() {
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<'TODAS' | 'PENDENTE' | 'APROVADA' | 'REJEITADA'>('TODAS');
+  
+  // Usar horário do servidor
+  const { currentTime } = useServerTime();
 
-  const { getNow, getLocalDateString } = useServerTime();
-
-  // Compara strings de horário para evitar bug de timezone
+  // Helper: verificar se reserva já passou (data + hora)
   const isBookingPast = (date: string, endTime: string) => {
-    const isoDate = date.includes('T') ? date.split('T')[0] : date; // "2026-02-20"
-    const todayStr = getLocalDateString(); // "2026-02-20"
-
-    // Data anterior a hoje → sempre finalizada
-    if (isoDate < todayStr) return true;
-
-    // Hoje → compara o horário atual em tempo real via getNow() (sem stale state)
-    if (isoDate === todayStr) {
-      const now = getNow().toTimeString().slice(0, 5); // "20:30"
-      return now >= endTime; // "20:30" >= "17:00" → true ✅
-    }
-
-    // Data futura → não finalizada
-    return false;
+    const [year, month, day] = date.split('-').map(Number);
+    const [hours, minutes] = endTime.split(':').map(Number);
+    
+    const bookingEndDateTime = new Date(year, month - 1, day, hours, minutes, 0, 0);
+    
+    return currentTime > bookingEndDateTime;
   };
 
   useEffect(() => {
@@ -92,8 +85,7 @@ export default function MinhasReservasPage() {
         toast.success('Reserva excluída com sucesso');
         fetchMyBookings();
       } else {
-        const data = await res.json();
-        toast.error(data.error || 'Erro ao excluir reserva');
+        toast.error('Erro ao excluir reserva');
       }
     } catch (error) {
       toast.error('Erro ao excluir reserva');
@@ -118,25 +110,29 @@ export default function MinhasReservasPage() {
       case 'PENDENTE':
         return '⏳ Pendente';
       case 'APROVADA':
-        return '✅ Aprovada';
+        return 'Aprovada';
       case 'REJEITADA':
-        return '❌ Rejeitada';
+        return 'Rejeitada';
       default:
         return status;
     }
   };
 
-  const activeBookings = bookings.filter(b => !isBookingPast(b.date, b.endTime));
-
-  const filteredBookings = filter === 'TODAS'
-    ? activeBookings
-    : activeBookings.filter(b => b.status === filter);
+  const filteredBookings = (() => {
+    // Primeiro filtra por status
+    let filtered = filter === 'TODAS'
+      ? bookings
+      : bookings.filter(b => b.status === filter);
+    
+    // Depois remove as finalizadas (que já passaram)
+    return filtered.filter(b => !isBookingPast(b.date, b.endTime));
+  })();
 
   const stats = {
-    total: activeBookings.length,
-    pendentes: activeBookings.filter(b => b.status === 'PENDENTE').length,
-    aprovadas: activeBookings.filter(b => b.status === 'APROVADA').length,
-    rejeitadas: activeBookings.filter(b => b.status === 'REJEITADA').length,
+    total: bookings.filter(b => !isBookingPast(b.date, b.endTime)).length,
+    pendentes: bookings.filter(b => b.status === 'PENDENTE' && !isBookingPast(b.date, b.endTime)).length,
+    aprovadas: bookings.filter(b => b.status === 'APROVADA' && !isBookingPast(b.date, b.endTime)).length,
+    rejeitadas: bookings.filter(b => b.status === 'REJEITADA' && !isBookingPast(b.date, b.endTime)).length,
   };
 
   if (loading) {
@@ -293,13 +289,19 @@ export default function MinhasReservasPage() {
                   </div>
 
                   <div className="flex lg:flex-col gap-2">
-                    <button
+                    {isBookingPast(booking.date, booking.endTime) ? (
+                      <div className="px-4 py-2 bg-gray-200 text-gray-600 font-semibold rounded-lg flex items-center justify-center gap-2">
+                        ✓ Finalizada
+                      </div>
+                    ) : (
+                      <button
                         onClick={() => handleDelete(booking.id)}
                         className="px-4 py-2 bg-red-500 hover:bg-red-600 text-white font-semibold rounded-lg transition-colors flex items-center justify-center gap-2"
                       >
                         <Trash2 size={16} />
                         Excluir
                       </button>
+                    )}
                   </div>
                 </div>
               </div>

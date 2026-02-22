@@ -68,7 +68,7 @@ export default function GerenciarUsuariosPage() {
       });
 
       if (res.ok) {
-        toast.success('✅ Usuário excluído com sucesso!');
+        toast.success('Usuário excluído com sucesso!');
         fetchUsers();
       } else {
         const data = await res.json();
@@ -95,14 +95,14 @@ export default function GerenciarUsuariosPage() {
       const data = await res.json();
       
       if (res.ok) {
-        toast.success(editingUser ? '✅ Usuário atualizado com sucesso!' : '✅ Usuário criado com sucesso!');
+        toast.success(editingUser ? 'Usuário atualizado com sucesso!' : 'Usuário criado com sucesso!');
         closeModal();
         fetchUsers();
       } else {
         if (data.error?.includes('email')) {
-          toast.error('❌ Este email já está cadastrado');
+          toast.error('Este email já está cadastrado');
         } else if (data.error?.includes('CPF')) {
-          toast.error('❌ Este CPF já está cadastrado');
+          toast.error('Este CPF já está cadastrado');
         } else {
           toast.error(data.error || 'Erro ao salvar usuário');
         }

@@ -20,17 +20,18 @@ export default function   Navbar() {
   const navItems = [
     { href: '/dashboard', icon: Home, label: 'Início', show: true, tour: 'dashboard' },
     { href: '/display', icon: Monitor, label: 'Display', show: true, tour: 'display' },
+    { href: '/calendario', icon: Calendar, label: 'Calendário', show: true, tour: 'calendario' },
     { href: '/professor/nova-reserva', icon: PlusCircle, label: 'Nova Reserva', show: isProfessor || isAdmin, tour: 'nova-reserva' },
     { href: '/professor/minhas-reservas', icon: FileText, label: 'Minhas Reservas', show: isProfessor || isAdmin, tour: 'minhas-reservas' },
     { href: '/admin', icon: Shield, label: 'Admin', show: isAdmin, tour: 'admin-panel' },
-    { href: '/admin/usuarios', icon: User, label: 'Usuários', show: isAdmin, tour: 'usuarios' },
-    { href: '/admin/salas', icon: MapPin, label: 'Salas', show: isAdmin, tour: 'salas' },
+    // { href: '/admin/usuarios', icon: User, label: 'Usuários', show: isAdmin, tour: 'usuarios' },
+    // { href: '/admin/salas', icon: MapPin, label: 'Salas', show: isAdmin, tour: 'salas' },
     { href: '/perfil', icon: User, label: 'Perfil', show: true, tour: 'profile-menu' },
   ];
 
   return (
     <nav className="glass sticky top-0 z-50 border-b-2 border-white/20 shadow-modern">
-      <div className="max-w-8xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div className="max-w-8xl mx-auto px-4 sm:px-6 lg:px-3">
         <div className="flex items-center justify-between h-16">
           {/* Logo */}
           <Link href="/dashboard" className="group flex items-center gap-3 hover:scale-105 transition-transform mr-4">

@@ -103,9 +103,14 @@ export default function AdminPage() {
     }
   };
 
-  const pendingBookings = bookings.filter(b => b.status === 'PENDENTE');
+  const pendingBookings = bookings
+    .filter(b => b.status === 'PENDENTE')
+    .filter(b => !isBookingPast(b.date, b.endTime));
+    
+  const activeBookings = bookings.filter(b => !isBookingPast(b.date, b.endTime));
+  
   const stats = {
-    totalBookings: bookings.length,
+    totalBookings: activeBookings.length,
     pending: pendingBookings.length,
     totalUsers: users.length,
     professors: users.filter(u => u.role === 'PROFESSOR').length,
@@ -234,7 +239,9 @@ export default function AdminPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {bookings.map((booking) => (
+                  {bookings
+                    .filter(booking => !isBookingPast(booking.date, booking.endTime))
+                    .map((booking) => (
                     <tr key={booking.id} className="border-b hover:bg-gray-50">
                       <td className="px-6 py-4 font-semibold">{booking.course}</td>
                       <td className="px-6 py-4">{booking.professor.name}</td>
@@ -251,15 +258,9 @@ export default function AdminPage() {
                         </span>
                       </td>
                       <td className="px-6 py-4">
-                        {isBookingPast(booking.date, booking.endTime) ? (
-                          <span className="px-3 py-1 bg-gray-200 text-gray-600 font-semibold rounded text-sm">
-                            ✓ Finalizada
-                          </span>
-                        ) : (
-                          <button onClick={() => handleDeleteBooking(booking.id)} className="text-red-500 hover:text-red-700">
-                            <Trash2 size={18} />
-                          </button>
-                        )}
+                        <button onClick={() => handleDeleteBooking(booking.id)} className="text-red-500 hover:text-red-700">
+                          <Trash2 size={18} />
+                        </button>
                       </td>
                     </tr>
                   ))}

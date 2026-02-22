@@ -115,7 +115,7 @@ const TOURS = {
     {
       target: 'body',
       content: 'Você está pronto! Explore o sistema e lembre-se: você pode iniciar este tour novamente clicando no botão de ajuda.',
-      title: '✅ Tudo Pronto!',
+      title: 'Tudo Pronto!',
       placement: 'center' as const,
     },
   ],

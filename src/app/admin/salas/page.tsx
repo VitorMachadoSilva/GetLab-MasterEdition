@@ -69,7 +69,7 @@ export default function GerenciarSalasPage() {
       });
 
       if (res.ok) {
-        toast.success('✅ Sala excluída com sucesso!');
+        toast.success('Sala excluída com sucesso!');
         fetchRooms();
       } else {
         const data = await res.json();
@@ -102,7 +102,7 @@ export default function GerenciarSalasPage() {
       });
 
       if (res.ok) {
-        toast.success(editingRoom ? '✅ Sala atualizada com sucesso!' : '✅ Sala criada com sucesso!');
+        toast.success(editingRoom ? 'Sala atualizada com sucesso!' : 'Sala criada com sucesso!');
         closeModal();
         fetchRooms();
       } else {

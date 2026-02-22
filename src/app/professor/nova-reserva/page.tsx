@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import { Plus, AlertCircle, Calendar, Clock, Users, MapPin, FileText } from 'lucide-react';
@@ -15,11 +15,190 @@ interface Room {
   building: string;
 }
 
+interface BookingConflict {
+  startTime: string;
+  endTime: string;
+  status: 'APROVADA' | 'PENDENTE';
+}
+
 const timeSlots = [
   '07:00', '08:00', '09:00', '10:00', '11:00', '12:00',
   '13:00', '14:00', '15:00', '16:00', '17:00', '18:00',
   '19:00', '20:00', '21:00', '22:00'
 ];
+
+// Retorna o status de conflito de um slot (null = livre, 'APROVADA' = bloqueado, 'PENDENTE' = solicitação)
+function getSlotStatus(slot: string, conflicts: BookingConflict[]): 'APROVADA' | 'PENDENTE' | null {
+  const [slotH] = slot.split(':').map(Number);
+  const slotMinutes = slotH * 60;
+
+  for (const conflict of conflicts) {
+    const [startH, startM] = conflict.startTime.split(':').map(Number);
+    const [endH, endM] = conflict.endTime.split(':').map(Number);
+    const startMinutes = startH * 60 + startM;
+    const endMinutes = endH * 60 + endM;
+
+    // O slot está ocupado se seu início está dentro do intervalo [start, end)
+    if (slotMinutes >= startMinutes && slotMinutes < endMinutes) {
+      return conflict.status;
+    }
+  }
+  return null;
+}
+
+// Retorna true se o slot viola a regra de 24h de antecedência
+function isSlotTooSoon(slot: string, date: string, serverNow: number): boolean {
+  if (!date || !serverNow) return false;
+  const [year, month, day] = date.split('-').map(Number);
+  const [slotH, slotM] = slot.split(':').map(Number);
+  const slotDateTime = new Date(year, month - 1, day, slotH, slotM, 0, 0);
+  const hoursDiff = (slotDateTime.getTime() - serverNow) / (1000 * 60 * 60);
+  return hoursDiff < 24;
+}
+
+function TimeSlotSelector({
+  label,
+  value,
+  onChange,
+  conflicts,
+  otherValue,
+  isStart,
+  error,
+  date,
+  serverNow,
+}: {
+  label: string;
+  value: string;
+  onChange: (val: string) => void;
+  conflicts: BookingConflict[];
+  otherValue: string;
+  isStart: boolean;
+  error?: string;
+  date: string;
+  serverNow: number;
+}) {
+  return (
+    <div>
+      <label className="flex items-center gap-2 text-sm font-bold text-gray-700 mb-3">
+        {/* <Clock size={18} className="text-primary-500" /> */}
+        {label} *
+      </label>
+
+      {/* Legenda */}
+      <div className="flex flex-wrap gap-3 mb-3 text-xs font-semibold">
+        <span className="flex items-center gap-1.5">
+          <span className="w-3 h-3 rounded-sm bg-green-500 inline-block" />
+          Livre
+        </span>
+        <span className="flex items-center gap-1.5">
+          <span className="w-3 h-3 rounded-sm bg-orange-400 inline-block" />
+          Solicitação
+        </span>
+        <span className="flex items-center gap-1.5">
+          <span className="w-3 h-3 rounded-sm bg-red-500 inline-block" />
+          Reservada
+        </span>
+        <span className="flex items-center gap-1.5">
+          <span className="w-3 h-3 rounded-sm bg-gray-300 inline-block" />
+          Indisponível
+        </span>
+      </div>
+
+      <div className="grid grid-cols-4 gap-2">
+        {timeSlots.map((slot) => {
+          const conflictStatus = getSlotStatus(slot, conflicts);
+          const tooSoon = isSlotTooSoon(slot, date, serverNow);
+          const isBlocked = conflictStatus !== null || tooSoon;
+          const isSelected = value === slot;
+
+          // Highlight selected range
+          let isInRange = false;
+          if (otherValue && value) {
+            const slotH = parseInt(slot.split(':')[0]);
+            if (isStart) {
+              const endH = parseInt(otherValue.split(':')[0]);
+              const startH = parseInt(value.split(':')[0]);
+              isInRange = slotH >= startH && slotH < endH;
+            } else {
+              const startH = parseInt(otherValue.split(':')[0]);
+              const endH = parseInt(value.split(':')[0]);
+              isInRange = slotH >= startH && slotH < endH;
+            }
+          }
+
+          let bgClass = '';
+          let textClass = '';
+          let borderClass = '';
+          let cursorClass = 'cursor-pointer';
+          let title = 'Disponível';
+          let dotColor = '';
+
+          if (tooSoon) {
+            cursorClass = 'cursor-not-allowed';
+            bgClass = 'bg-gray-100';
+            textClass = 'text-gray-400';
+            borderClass = 'border-gray-300';
+            title = 'Menos de 24h de antecedência';
+          } else if (conflictStatus !== null) {
+            cursorClass = 'cursor-not-allowed';
+            if (conflictStatus === 'APROVADA') {
+              bgClass = 'bg-red-100';
+              textClass = 'text-red-700';
+              borderClass = 'border-red-400';
+              dotColor = 'bg-red-500';
+              title = 'Horário reservado (aprovado)';
+            } else {
+              bgClass = 'bg-orange-100';
+              textClass = 'text-orange-700';
+              borderClass = 'border-orange-400';
+              dotColor = 'bg-orange-400';
+              title = 'Horário com solicitação pendente';
+            }
+          } else if (isSelected) {
+            bgClass = 'bg-primary-600';
+            textClass = 'text-white';
+            borderClass = 'border-primary-700';
+          } else if (isInRange) {
+            bgClass = 'bg-primary-100';
+            textClass = 'text-primary-700';
+            borderClass = 'border-primary-300';
+          } else {
+            bgClass = 'bg-green-50 hover:bg-green-100';
+            textClass = 'text-green-800';
+            borderClass = 'border-green-300';
+          }
+
+          return (
+            <button
+              key={slot}
+              type="button"
+              title={title}
+              disabled={isBlocked}
+              onClick={() => !isBlocked && onChange(slot)}
+              className={`
+                relative px-2 py-2.5 rounded-lg border-2 text-xs font-bold
+                transition-all duration-150 select-none
+                ${bgClass} ${textClass} ${borderClass} ${cursorClass}
+                ${isSelected ? 'shadow-md scale-105 ring-2 ring-primary-300' : ''}
+                ${isBlocked ? 'opacity-80' : ''}
+              `}
+            >
+              {slot}
+              {/* Indicador de status no canto (só para conflitos) */}
+              {conflictStatus && !tooSoon && (
+                <span className={`absolute top-0.5 right-0.5 w-1.5 h-1.5 rounded-full ${dotColor}`} />
+              )}
+            </button>
+          );
+        })}
+      </div>
+
+      {error && (
+        <p className="mt-2 text-sm text-red-600 font-semibold">⚠️ {error}</p>
+      )}
+    </div>
+  );
+}
 
 export default function NovaReservaPage() {
   const { data: session } = useSession();
@@ -27,31 +206,37 @@ export default function NovaReservaPage() {
   const [rooms, setRooms] = useState<Room[]>([]);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
-  const [errors, setErrors] = useState<{[key: string]: string}>({});
+  const [errors, setErrors] = useState<{ [key: string]: string }>({});
+  const [conflicts, setConflicts] = useState<BookingConflict[]>([]);
+  const [loadingConflicts, setLoadingConflicts] = useState(false);
+  const [serverNow, setServerNow] = useState<number>(Date.now());
+
   const [formData, setFormData] = useState({
     roomId: '',
     course: '',
     startTime: '',
     endTime: '',
-    date: '', // Será preenchido após sincronizar com servidor
+    date: '',
     students: '',
     notes: '',
   });
 
-  // Inicializar data de amanhã usando horário do servidor
+  // Inicializar data de amanhã usando horário do servidor e capturar serverNow
   useEffect(() => {
     const initializeDate = async () => {
       try {
         const res = await fetch('/api/time');
         const serverTime = await res.json();
-        const tomorrow = new Date(serverTime.timestamp + 86400000); // +1 dia
+        setServerNow(serverTime.timestamp);
+        const tomorrow = new Date(serverTime.timestamp + 86400000);
         const year = tomorrow.getFullYear();
         const month = String(tomorrow.getMonth() + 1).padStart(2, '0');
         const day = String(tomorrow.getDate()).padStart(2, '0');
         setFormData(prev => ({ ...prev, date: `${year}-${month}-${day}` }));
-      } catch (error) {
-        // Fallback para horário local
-        const tomorrow = new Date(Date.now() + 86400000);
+      } catch {
+        const now = Date.now();
+        setServerNow(now);
+        const tomorrow = new Date(now + 86400000);
         const year = tomorrow.getFullYear();
         const month = String(tomorrow.getMonth() + 1).padStart(2, '0');
         const day = String(tomorrow.getDate()).padStart(2, '0');
@@ -65,6 +250,40 @@ export default function NovaReservaPage() {
     fetchRooms();
   }, []);
 
+  // Buscar conflitos sempre que sala ou data mudarem
+  const fetchConflicts = useCallback(async (roomId: string, date: string) => {
+    if (!roomId || !date) {
+      setConflicts([]);
+      return;
+    }
+    setLoadingConflicts(true);
+    try {
+      const res = await fetch(`/api/bookings?roomId=${roomId}&date=${date}`);
+      if (res.ok) {
+        const data = await res.json();
+        // Mapear para o formato que precisamos
+        const mapped: BookingConflict[] = data
+          .filter((b: any) => b.status === 'APROVADA' || b.status === 'PENDENTE')
+          .map((b: any) => ({
+            startTime: b.startTime,
+            endTime: b.endTime,
+            status: b.status,
+          }));
+        setConflicts(mapped);
+      }
+    } catch {
+      // Silencioso, não crítico
+    } finally {
+      setLoadingConflicts(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchConflicts(formData.roomId, formData.date);
+    // Limpar horários selecionados ao trocar sala/data
+    setFormData(prev => ({ ...prev, startTime: '', endTime: '' }));
+  }, [formData.roomId, formData.date, fetchConflicts]);
+
   const fetchRooms = async () => {
     try {
       const res = await fetch('/api/rooms');
@@ -74,7 +293,7 @@ export default function NovaReservaPage() {
       } else {
         toast.error('Erro ao carregar salas');
       }
-    } catch (error) {
+    } catch {
       toast.error('Erro ao carregar salas');
     } finally {
       setLoading(false);
@@ -82,45 +301,35 @@ export default function NovaReservaPage() {
   };
 
   const validateForm = async (): Promise<boolean> => {
-    const newErrors: {[key: string]: string} = {};
+    const newErrors: { [key: string]: string } = {};
 
-    // Validação de data/hora: mínimo 24h de antecedência (usando horário do servidor)
     if (formData.startTime) {
       try {
-        // Buscar horário do servidor
         const res = await fetch('/api/time');
         const serverTime = await res.json();
-        const now = new Date(serverTime.timestamp);
-        
-        // Criar data no timezone local (sem conversão UTC)
+        const freshNow = serverTime.timestamp;
+        setServerNow(freshNow);
+        const now = new Date(freshNow);
+
         const [year, month, day] = formData.date.split('-').map(Number);
-        const selectedDate = new Date(year, month - 1, day);
         const [startH, startM] = formData.startTime.split(':').map(Number);
-        
-        // Criar data/hora completa da reserva
-        const bookingDateTime = new Date(selectedDate);
-        bookingDateTime.setHours(startH, startM, 0, 0);
-        
+        const bookingDateTime = new Date(year, month - 1, day, startH, startM, 0, 0);
+
         const hoursDiff = (bookingDateTime.getTime() - now.getTime()) / (1000 * 60 * 60);
-        
         if (hoursDiff < 24) {
           newErrors.date = 'Mínimo 24h de antecedência';
           newErrors.startTime = 'Mínimo 24h de antecedência';
           toast.error('⚠️ A reserva deve ser feita com no mínimo 24 horas de antecedência');
         }
-      } catch (error) {
-        console.error('Erro ao validar horário:', error);
+      } catch {
+        console.error('Erro ao validar horário');
       }
     }
 
-    // Validação de horário: mínimo 1 hora de duração
     if (formData.startTime && formData.endTime) {
-      const [startHour, startMin] = formData.startTime.split(':').map(Number);
-      const [endHour, endMin] = formData.endTime.split(':').map(Number);
-      
-      const startMinutes = startHour * 60 + startMin;
-      const endMinutes = endHour * 60 + endMin;
-      const durationMinutes = endMinutes - startMinutes;
+      const [startHour] = formData.startTime.split(':').map(Number);
+      const [endHour] = formData.endTime.split(':').map(Number);
+      const durationMinutes = (endHour - startHour) * 60;
 
       if (durationMinutes < 60) {
         newErrors.startTime = 'Duração mínima: 1 hora';
@@ -134,7 +343,6 @@ export default function NovaReservaPage() {
       }
     }
 
-    // Validação de capacidade
     const selectedRoom = rooms.find(r => r.id === formData.roomId);
     if (selectedRoom && formData.students && parseInt(formData.students) > selectedRoom.capacity) {
       newErrors.students = `Sala comporta apenas ${selectedRoom.capacity} alunos`;
@@ -147,14 +355,11 @@ export default function NovaReservaPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     const isValid = await validateForm();
-    if (!isValid) {
-      return;
-    }
+    if (!isValid) return;
 
     setSubmitting(true);
-
     try {
       const res = await fetch('/api/bookings', {
         method: 'POST',
@@ -165,16 +370,16 @@ export default function NovaReservaPage() {
       const data = await res.json();
 
       if (res.ok) {
-        toast.success('✅ Solicitação de reserva enviada com sucesso!');
+        toast.success('Solicitação de reserva enviada com sucesso!');
         setTimeout(() => {
           router.push('/professor/minhas-reservas');
         }, 1500);
       } else if (res.status === 409) {
-        toast.error('❌ Conflito de horário detectado! Escolha outro horário.');
+        toast.error('Conflito de horário detectado! Escolha outro horário.');
       } else {
         toast.error(data.error || 'Erro ao criar reserva');
       }
-    } catch (error) {
+    } catch {
       toast.error('Erro ao criar reserva');
     } finally {
       setSubmitting(false);
@@ -184,6 +389,7 @@ export default function NovaReservaPage() {
   if (loading) return <LoadingSpinner />;
 
   const selectedRoom = rooms.find(r => r.id === formData.roomId);
+  const showTimeSlots = formData.roomId && formData.date;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-50 p-6">
@@ -326,60 +532,93 @@ export default function NovaReservaPage() {
               </div>
             </div>
 
-            {/* Horários */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div>
-                <label className="flex items-center gap-2 text-sm font-bold text-gray-700 mb-3">
-                  <Clock size={18} className="text-primary-500" />
-                  Horário de Início *
-                </label>
-                <select
-                  value={formData.startTime}
-                  onChange={(e) => {
-                    setFormData({ ...formData, startTime: e.target.value });
-                    setErrors({ ...errors, startTime: '', endTime: '' });
-                  }}
-                  required
-                  className={`w-full px-4 py-3.5 border-2 rounded-xl focus:ring-4 focus:ring-primary-100 outline-none transition-all ${
-                    errors.startTime ? 'border-red-500 bg-red-50' : 'border-gray-200 focus:border-primary-500'
-                  }`}
-                >
-                  <option value="">Selecione...</option>
-                  {timeSlots.map((time) => (
-                    <option key={time} value={time}>{time}</option>
-                  ))}
-                </select>
-                {errors.startTime && (
-                  <p className="mt-2 text-sm text-red-600 font-semibold">⚠️ {errors.startTime}</p>
-                )}
+            {/* Horários com visualização de conflitos */}
+            {!showTimeSlots ? (
+              <div className="border-2 border-dashed border-gray-200 rounded-xl p-6 text-center text-gray-400">
+                <Clock size={32} className="mx-auto mb-2 opacity-40" />
+                <p className="font-semibold">Selecione uma sala e uma data para ver os horários disponíveis</p>
               </div>
+            ) : (
+              <div className="border-2 border-gray-100 rounded-xl p-5 bg-gray-50 space-y-6">
+                <div className="flex items-center justify-between">
+                  <h3 className="font-bold text-gray-800 flex items-center gap-2">
+                    <Clock size={18} className="text-primary-500" />
+                    Horários Disponíveis
+                  </h3>
+                  {loadingConflicts && (
+                    <span className="text-xs text-gray-500 animate-pulse">Carregando disponibilidade...</span>
+                  )}
+                </div>
 
-              <div>
-                <label className="flex items-center gap-2 text-sm font-bold text-gray-700 mb-3">
-                  <Clock size={18} className="text-primary-500" />
-                  Horário de Término *
-                </label>
-                <select
-                  value={formData.endTime}
-                  onChange={(e) => {
-                    setFormData({ ...formData, endTime: e.target.value });
-                    setErrors({ ...errors, endTime: '' });
-                  }}
-                  required
-                  className={`w-full px-4 py-3.5 border-2 rounded-xl focus:ring-4 focus:ring-primary-100 outline-none transition-all ${
-                    errors.endTime ? 'border-red-500 bg-red-50' : 'border-gray-200 focus:border-primary-500'
-                  }`}
-                >
-                  <option value="">Selecione...</option>
-                  {timeSlots.map((time) => (
-                    <option key={time} value={time}>{time}</option>
-                  ))}
-                </select>
-                {errors.endTime && (
-                  <p className="mt-2 text-sm text-red-600 font-semibold">⚠️ {errors.endTime}</p>
+                {/* Resumo dos conflitos (se houver) */}
+                {conflicts.length > 0 && (
+                  <div className="bg-white rounded-lg border border-gray-200 p-3 space-y-1.5">
+                    <p className="text-xs font-bold text-gray-600 uppercase tracking-wide mb-2">Ocupações nesta data</p>
+                    {conflicts.map((c, i) => (
+                      <div key={i} className="flex items-center gap-2 text-xs">
+                        <span
+                          className={`w-2 h-2 rounded-full flex-shrink-0 ${
+                            c.status === 'APROVADA' ? 'bg-red-500' : 'bg-orange-400'
+                          }`}
+                        />
+                        <span className="font-semibold text-gray-700">
+                          {c.startTime} – {c.endTime}
+                        </span>
+                        <span
+                          className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${
+                            c.status === 'APROVADA'
+                              ? 'bg-red-100 text-red-700'
+                              : 'bg-orange-100 text-orange-700'
+                          }`}
+                        >
+                          {c.status === 'APROVADA' ? 'Aprovada' : 'Pendente'}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <TimeSlotSelector
+                    label="Horário de Início"
+                    value={formData.startTime}
+                    onChange={(val) => {
+                      setFormData(prev => ({ ...prev, startTime: val }));
+                      setErrors(prev => ({ ...prev, startTime: '', endTime: '' }));
+                    }}
+                    conflicts={conflicts}
+                    otherValue={formData.endTime}
+                    isStart={true}
+                    error={errors.startTime}
+                    date={formData.date}
+                    serverNow={serverNow}
+                  />
+
+                  <TimeSlotSelector
+                    label="Horário de Término"
+                    value={formData.endTime}
+                    onChange={(val) => {
+                      setFormData(prev => ({ ...prev, endTime: val }));
+                      setErrors(prev => ({ ...prev, endTime: '' }));
+                    }}
+                    conflicts={conflicts}
+                    otherValue={formData.startTime}
+                    isStart={false}
+                    error={errors.endTime}
+                    date={formData.date}
+                    serverNow={serverNow}
+                  />
+                </div>
+
+                {/* Resumo da seleção */}
+                {formData.startTime && formData.endTime && formData.endTime > formData.startTime && (
+                  <div className="bg-primary-50 border border-primary-200 rounded-lg p-3 text-sm text-primary-800 font-semibold text-center">
+                    Período selecionado: <strong>{formData.startTime}</strong> até <strong>{formData.endTime}</strong>
+                    {' '}({parseInt(formData.endTime) - parseInt(formData.startTime)}h de duração)
+                  </div>
                 )}
               </div>
-            </div>
+            )}
 
             {/* Observações */}
             <div>
