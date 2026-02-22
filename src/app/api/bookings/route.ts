@@ -16,8 +16,14 @@ export async function GET(request: NextRequest) {
     const date = searchParams.get('date');
     const status = searchParams.get('status');
     const professorId = searchParams.get('professorId');
+    const roomId = searchParams.get('roomId'); // ✅ ADICIONADO
 
     const where: any = {};
+
+    // Filtrar por sala específica ✅
+    if (roomId) {
+      where.roomId = roomId;
+    }
 
     // Filtrar por data - usa range para pegar qualquer hora do dia
     if (date) {
