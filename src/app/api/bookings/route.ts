@@ -3,6 +3,34 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 
+// Deleta automaticamente reservas cujo período já encerrou
+async function deletePastBookings() {
+  try {
+    const now = new Date();
+
+    const allBookings = await prisma.booking.findMany({
+      select: { id: true, date: true, endTime: true },
+    });
+
+    const expiredIds = allBookings
+      .filter(({ date, endTime }) => {
+        const isoDate = date.toISOString().split('T')[0];
+        const [year, month, day] = isoDate.split('-').map(Number);
+        const [hours, minutes] = endTime.split(':').map(Number);
+        const end = new Date(year, month - 1, day, hours, minutes, 0, 0);
+        return now > end;
+      })
+      .map((b) => b.id);
+
+    if (expiredIds.length > 0) {
+      await prisma.booking.deleteMany({ where: { id: { in: expiredIds } } });
+      console.log(`🧹 ${expiredIds.length} reserva(s) expirada(s) removida(s) do banco.`);
+    }
+  } catch (error) {
+    console.error('Erro ao limpar reservas expiradas:', error);
+  }
+}
+
 // GET - Listar reservas
 export async function GET(request: NextRequest) {
   try {
@@ -12,6 +40,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Não autenticado' }, { status: 401 });
     }
 
+    // Limpa reservas expiradas a cada requisição autenticada
     const { searchParams } = new URL(request.url);
     const date = searchParams.get('date');
     const status = searchParams.get('status');

@@ -38,17 +38,23 @@ export default function MinhasReservasPage() {
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<'TODAS' | 'PENDENTE' | 'APROVADA' | 'REJEITADA'>('TODAS');
   
-  // Usar horário do servidor
   const { currentTime } = useServerTime();
 
-  // Helper: verificar se reserva já passou (data + hora)
   const isBookingPast = (date: string, endTime: string) => {
-    const [year, month, day] = date.split('-').map(Number);
+    const bookingDate = new Date(date);
     const [hours, minutes] = endTime.split(':').map(Number);
-    
-    const bookingEndDateTime = new Date(year, month - 1, day, hours, minutes, 0, 0);
-    
-    return currentTime > bookingEndDateTime;
+
+    const bookingEnd = new Date(
+      bookingDate.getFullYear(),
+      bookingDate.getMonth(),
+      bookingDate.getDate(),
+      hours,
+      minutes,
+      0,
+      0
+    );
+
+    return currentTime > bookingEnd;
   };
 
   useEffect(() => {
@@ -92,7 +98,9 @@ export default function MinhasReservasPage() {
     }
   };
 
-  const getStatusColor = (status: string) => {
+  const getStatusColor = (status: string, isPast: boolean) => {
+    if (isPast) return 'bg-gray-200 text-gray-700 border-gray-300';
+
     switch (status) {
       case 'PENDENTE':
         return 'bg-yellow-100 text-yellow-800 border-yellow-300';
@@ -105,7 +113,9 @@ export default function MinhasReservasPage() {
     }
   };
 
-  const getStatusText = (status: string) => {
+  const getStatusText = (status: string, isPast: boolean) => {
+    if (isPast) return 'Finalizada';
+
     switch (status) {
       case 'PENDENTE':
         return '⏳ Pendente';
@@ -118,21 +128,29 @@ export default function MinhasReservasPage() {
     }
   };
 
-  const filteredBookings = (() => {
-    // Primeiro filtra por status
-    let filtered = filter === 'TODAS'
+  const filteredBookings =
+    filter === 'TODAS'
       ? bookings
       : bookings.filter(b => b.status === filter);
-    
-    // Depois remove as finalizadas (que já passaram)
-    return filtered.filter(b => !isBookingPast(b.date, b.endTime));
-  })();
 
-  const stats = {
-    total: bookings.filter(b => !isBookingPast(b.date, b.endTime)).length,
-    pendentes: bookings.filter(b => b.status === 'PENDENTE' && !isBookingPast(b.date, b.endTime)).length,
-    aprovadas: bookings.filter(b => b.status === 'APROVADA' && !isBookingPast(b.date, b.endTime)).length,
-    rejeitadas: bookings.filter(b => b.status === 'REJEITADA' && !isBookingPast(b.date, b.endTime)).length,
+    const stats = {
+    total: bookings.length,
+
+    pendentes: bookings.filter(
+      b => b.status === 'PENDENTE' && !isBookingPast(b.date, b.endTime)
+    ).length,
+
+    aprovadas: bookings.filter(
+      b => b.status === 'APROVADA' && !isBookingPast(b.date, b.endTime)
+    ).length,
+
+    rejeitadas: bookings.filter(
+      b => b.status === 'REJEITADA'
+    ).length,
+
+    finalizadas: bookings.filter(
+      b => isBookingPast(b.date, b.endTime)
+    ).length,
   };
 
   if (loading) {
@@ -146,7 +164,7 @@ export default function MinhasReservasPage() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-primary-50 via-white to-secondary-50 p-6">
       <div className="max-w-7xl mx-auto">
-        {/* Header */}
+
         <div className="mb-8">
           <button
             onClick={() => router.push('/dashboard')}
@@ -173,154 +191,152 @@ export default function MinhasReservasPage() {
         </div>
 
         {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
-          <div className="bg-white rounded-xl p-6 border-2 border-gray-200">
-            <div className="text-3xl font-black text-gray-900">{stats.total}</div>
-            <div className="text-sm text-gray-600 font-medium">Total</div>
+      <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-8">
+
+        <div className="bg-white rounded-xl p-6 border-2 border-gray-200">
+          <div className="text-3xl font-black text-gray-900">
+            {stats.total}
           </div>
-          <div className="bg-yellow-50 rounded-xl p-6 border-2 border-yellow-200">
-            <div className="text-3xl font-black text-yellow-800">{stats.pendentes}</div>
-            <div className="text-sm text-yellow-700 font-medium">Pendentes</div>
-          </div>
-          <div className="bg-green-50 rounded-xl p-6 border-2 border-green-200">
-            <div className="text-3xl font-black text-green-800">{stats.aprovadas}</div>
-            <div className="text-sm text-green-700 font-medium">Aprovadas</div>
-          </div>
-          <div className="bg-red-50 rounded-xl p-6 border-2 border-red-200">
-            <div className="text-3xl font-black text-red-800">{stats.rejeitadas}</div>
-            <div className="text-sm text-red-700 font-medium">Rejeitadas</div>
+          <div className="text-sm text-gray-600 font-medium">
+            Total
           </div>
         </div>
 
-        {/* Filters */}
+        <div className="bg-yellow-50 rounded-xl p-6 border-2 border-yellow-200">
+          <div className="text-3xl font-black text-yellow-800">
+            {stats.pendentes}
+          </div>
+          <div className="text-sm text-yellow-700 font-medium">
+            Pendentes
+          </div>
+        </div>
+
+        <div className="bg-green-50 rounded-xl p-6 border-2 border-green-200">
+          <div className="text-3xl font-black text-green-800">
+            {stats.aprovadas}
+          </div>
+          <div className="text-sm text-green-700 font-medium">
+            Aprovadas
+          </div>
+        </div>
+
+        <div className="bg-red-50 rounded-xl p-6 border-2 border-red-200">
+          <div className="text-3xl font-black text-red-800">
+            {stats.rejeitadas}
+          </div>
+          <div className="text-sm text-red-700 font-medium">
+            Rejeitadas
+          </div>
+        </div>
+
+        <div className="bg-gray-100 rounded-xl p-6 border-2 border-gray-300">
+          <div className="text-3xl font-black text-gray-700">
+            {stats.finalizadas}
+          </div>
+          <div className="text-sm text-gray-600 font-medium">
+            Finalizadas
+          </div>
+        </div>
+
+      </div>
+
         <div className="mb-6 flex items-center gap-3">
           <Filter size={20} className="text-gray-600" />
-          <button
-            onClick={() => setFilter('TODAS')}
-            className={`px-4 py-2 rounded-lg font-semibold transition-colors ${
-              filter === 'TODAS'
-                ? 'bg-primary-500 text-white'
-                : 'bg-white border-2 border-gray-200 text-gray-700 hover:border-primary-300'
-            }`}
-          >
-            Todas
-          </button>
-          <button
-            onClick={() => setFilter('PENDENTE')}
-            className={`px-4 py-2 rounded-lg font-semibold transition-colors ${
-              filter === 'PENDENTE'
-                ? 'bg-yellow-500 text-white'
-                : 'bg-white border-2 border-gray-200 text-gray-700 hover:border-yellow-300'
-            }`}
-          >
-            Pendentes
-          </button>
-          <button
-            onClick={() => setFilter('APROVADA')}
-            className={`px-4 py-2 rounded-lg font-semibold transition-colors ${
-              filter === 'APROVADA'
-                ? 'bg-green-500 text-white'
-                : 'bg-white border-2 border-gray-200 text-gray-700 hover:border-green-300'
-            }`}
-          >
-            Aprovadas
-          </button>
-          <button
-            onClick={() => setFilter('REJEITADA')}
-            className={`px-4 py-2 rounded-lg font-semibold transition-colors ${
-              filter === 'REJEITADA'
-                ? 'bg-red-500 text-white'
-                : 'bg-white border-2 border-gray-200 text-gray-700 hover:border-red-300'
-            }`}
-          >
-            Rejeitadas
-          </button>
+          {['TODAS', 'PENDENTE', 'APROVADA', 'REJEITADA'].map((f) => (
+            <button
+              key={f}
+              onClick={() => setFilter(f as any)}
+              className={`px-4 py-2 rounded-lg font-semibold transition-colors ${
+                filter === f
+                  ? 'bg-primary-500 text-white'
+                  : 'bg-white border-2 border-gray-200 text-gray-700'
+              }`}
+            >
+              {f}
+            </button>
+          ))}
         </div>
 
-        {/* Bookings List */}
         {filteredBookings.length > 0 ? (
           <div className="grid gap-4">
-            {filteredBookings.map((booking) => (
-              <div
-                key={booking.id}
-                className="bg-white rounded-xl p-6 border-2 border-gray-200 hover:shadow-lg transition-all"
-              >
-                <div className="flex flex-col lg:flex-row justify-between gap-6">
-                  <div className="flex-1">
-                    <div className="flex items-start justify-between mb-4">
-                      <div>
-                        <h3 className="text-2xl font-bold text-gray-900 mb-2">
-                          {booking.course}
-                        </h3>
-                        <div className="flex items-center gap-3">
-                          <span className={`px-3 py-1 rounded-lg text-sm font-bold border ${getStatusColor(booking.status)}`}>
-                            {getStatusText(booking.status)}
+            {filteredBookings.map((booking) => {
+              const isPast = isBookingPast(booking.date, booking.endTime);
+
+              return (
+                <div
+                  key={booking.id}
+                  className="bg-white rounded-xl p-6 border-2 border-gray-200 hover:shadow-lg transition-all"
+                >
+                  <div className="flex flex-col lg:flex-row justify-between gap-6">
+                    <div className="flex-1">
+                      <h3 className="text-2xl font-bold text-gray-900 mb-2">
+                        {booking.course}
+                      </h3>
+
+                      <span
+                        className={`px-3 py-1 rounded-lg text-sm font-bold border ${getStatusColor(
+                          booking.status,
+                          isPast
+                        )}`}
+                      >
+                        {getStatusText(booking.status, isPast)}
+                      </span>
+
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 text-sm mt-4">
+                        <div className="flex items-center gap-2 text-gray-700">
+                          <Calendar size={16} className="text-primary-500" />
+                          <span>
+                            {new Date(booking.date).toLocaleDateString('pt-BR')}
                           </span>
+                        </div>
+
+                        <div className="flex items-center gap-2 text-gray-700">
+                          <Clock size={16} className="text-primary-500" />
+                          <span>
+                            {booking.startTime} - {booking.endTime}
+                          </span>
+                        </div>
+
+                        <div className="flex items-center gap-2 text-gray-700">
+                          <MapPin size={16} className="text-primary-500" />
+                          <span>
+                            {booking.room.name} - {booking.room.building}
+                          </span>
+                        </div>
+
+                        <div className="flex items-center gap-2 text-gray-700">
+                          <Users size={16} className="text-primary-500" />
+                          <span>{booking.students} alunos</span>
                         </div>
                       </div>
                     </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 text-sm">
-                      <div className="flex items-center gap-2 text-gray-700">
-                        <Calendar size={16} className="text-primary-500" />
-                        <span>{new Date(booking.date).toLocaleDateString('pt-BR')}</span>
-                      </div>
-                      <div className="flex items-center gap-2 text-gray-700">
-                        <Clock size={16} className="text-primary-500" />
-                        <span>{booking.startTime} - {booking.endTime}</span>
-                      </div>
-                      <div className="flex items-center gap-2 text-gray-700">
-                        <MapPin size={16} className="text-primary-500" />
-                        <span>{booking.room.name} - {booking.room.building}</span>
-                      </div>
-                      <div className="flex items-center gap-2 text-gray-700">
-                        <Users size={16} className="text-primary-500" />
-                        <span>{booking.students} alunos</span>
-                      </div>
+                    <div className="flex lg:flex-col gap-2">
+                      {isPast ? (
+                        <div className="px-4 py-2 bg-gray-300 text-gray-700 font-semibold rounded-lg text-center">
+                          Finalizada
+                        </div>
+                      ) : (
+                        <button
+                          onClick={() => handleDelete(booking.id)}
+                          className="px-4 py-2 bg-red-500 hover:bg-red-600 text-white font-semibold rounded-lg transition-colors flex items-center justify-center gap-2"
+                        >
+                          <Trash2 size={16} />
+                          Excluir
+                        </button>
+                      )}
                     </div>
-
-                    {booking.notes && (
-                      <div className="mt-4 p-3 bg-gray-50 rounded-lg">
-                        <p className="text-sm text-gray-700">
-                          <strong>Observações:</strong> {booking.notes}
-                        </p>
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="flex lg:flex-col gap-2">
-                    {isBookingPast(booking.date, booking.endTime) ? (
-                      <div className="px-4 py-2 bg-gray-200 text-gray-600 font-semibold rounded-lg flex items-center justify-center gap-2">
-                        ✓ Finalizada
-                      </div>
-                    ) : (
-                      <button
-                        onClick={() => handleDelete(booking.id)}
-                        className="px-4 py-2 bg-red-500 hover:bg-red-600 text-white font-semibold rounded-lg transition-colors flex items-center justify-center gap-2"
-                      >
-                        <Trash2 size={16} />
-                        Excluir
-                      </button>
-                    )}
                   </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         ) : (
           <div className="bg-white rounded-xl p-12 text-center border-2 border-gray-200">
             <Calendar size={64} className="mx-auto mb-4 text-gray-300" />
-            <p className="text-xl text-gray-500 mb-4">
-              {filter === 'TODAS' ? 'Você ainda não tem reservas' : `Nenhuma reserva ${filter.toLowerCase()}`}
+            <p className="text-xl text-gray-500">
+              Nenhuma reserva encontrada
             </p>
-            {filter === 'TODAS' && (
-              <button
-                onClick={() => router.push('/professor/nova-reserva')}
-                className="px-6 py-3 bg-gradient-to-r from-primary-500 to-secondary-500 text-white font-bold rounded-lg hover:shadow-lg transition-all inline-block"
-              >
-                Criar Primeira Reserva
-              </button>
-            )}
           </div>
         )}
       </div>

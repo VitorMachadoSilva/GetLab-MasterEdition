@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useSession, signOut } from 'next-auth/react';
-import { Calendar, User, LogOut, Home, PlusCircle, FileText, Shield, MapPin, Monitor } from 'lucide-react';
+import { Calendar, User, LogOut, Home, PlusCircle, FileText, Shield, MapPin, Monitor, ClipboardList } from 'lucide-react';
 
 export default function   Navbar() {
   const pathname = usePathname();
@@ -24,6 +24,7 @@ export default function   Navbar() {
     { href: '/professor/nova-reserva', icon: PlusCircle, label: 'Nova Reserva', show: isProfessor || isAdmin, tour: 'nova-reserva' },
     { href: '/professor/minhas-reservas', icon: FileText, label: 'Minhas Reservas', show: isProfessor || isAdmin, tour: 'minhas-reservas' },
     { href: '/admin', icon: Shield, label: 'Admin', show: isAdmin, tour: 'admin-panel' },
+    { href: '/professor/registros', icon: ClipboardList, label: 'Registros', show: true, tour: 'registros' },
     // { href: '/admin/usuarios', icon: User, label: 'Usuários', show: isAdmin, tour: 'usuarios' },
     // { href: '/admin/salas', icon: MapPin, label: 'Salas', show: isAdmin, tour: 'salas' },
     { href: '/perfil', icon: User, label: 'Perfil', show: true, tour: 'profile-menu' },
