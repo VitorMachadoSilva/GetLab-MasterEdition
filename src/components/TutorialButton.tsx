@@ -13,7 +13,7 @@ export default function TutorialButton({ onStart }: TutorialButtonProps) {
   return (
     <>
       {/* Floating Button */}
-      <div className="fixed bottom-6 right-6 z-50 group">
+      <div className="fixed bottom-6 right-9 z-50 group">
         {/* Tooltip — abre para cima e para a esquerda, com largura controlada */}
         {showTooltip && (
           <div className="absolute bottom-[calc(100%+12px)] right-0 animate-fade-in-up">
