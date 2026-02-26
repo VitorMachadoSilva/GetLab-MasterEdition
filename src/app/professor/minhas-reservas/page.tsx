@@ -36,7 +36,7 @@ export default function MinhasReservasPage() {
   const router = useRouter();
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState<'TODAS' | 'PENDENTE' | 'APROVADA' | 'REJEITADA'>('TODAS');
+  const [filter, setFilter] = useState<'TODAS' | 'PENDENTE' | 'APROVADA' | 'REJEITADA' | 'FINALIZADA'>('TODAS');
   
   const { currentTime } = useServerTime();
 
@@ -56,6 +56,30 @@ export default function MinhasReservasPage() {
 
     return currentTime > bookingEnd;
   };
+
+   const isBookingFinalized = (b: Booking) =>
+    isBookingPast(b.date, b.endTime);
+
+  const isBookingActive = (b: Booking) =>
+    !isBookingFinalized(b);
+
+  const isApprovedAndActive = (b: Booking) =>
+    b.status === 'APROVADA' && isBookingActive(b);
+
+  const isPendingAndActive = (b: Booking) =>
+    b.status === 'PENDENTE' && isBookingActive(b);
+
+  const isRejected = (b: Booking) =>
+  b.status === 'REJEITADA';
+
+  const stats = {
+    total: bookings.length,
+    
+    pendentes: bookings.filter(isPendingAndActive).length,
+    aprovadas: bookings.filter(isApprovedAndActive).length,
+    rejeitadas: bookings.filter(isRejected).length,
+    finalizadas: bookings.filter(isBookingFinalized).length,
+  }
 
   useEffect(() => {
     if (session?.user?.id) {
@@ -129,29 +153,38 @@ export default function MinhasReservasPage() {
   };
 
   const filteredBookings =
-    filter === 'TODAS'
-      ? bookings
-      : bookings.filter(b => b.status === filter);
+    bookings.filter(b => {
+      const isPast = isBookingPast(b.date, b.endTime);
 
-    const stats = {
-    total: bookings.length,
+      if (filter === 'FINALIZADA') return isPast
+      if (filter === 'PENDENTE') return b.status === 'PENDENTE' && !isPast
+      if (filter === 'APROVADA') return b.status === 'APROVADA' && !isPast
+      if (filter === 'REJEITADA') return b.status === 'REJEITADA' 
+      return true;  
+    })
 
-    pendentes: bookings.filter(
-      b => b.status === 'PENDENTE' && !isBookingPast(b.date, b.endTime)
-    ).length,
+    // filter === 'TODAS'
+    //   ? bookings
+    //   : bookings.filter(b => b.status === filter);
 
-    aprovadas: bookings.filter(
-      b => b.status === 'APROVADA' && !isBookingPast(b.date, b.endTime)
-    ).length,
+    // const stats = {
+    // total: bookings.length,
 
-    rejeitadas: bookings.filter(
-      b => b.status === 'REJEITADA'
-    ).length,
+    // pendentes: bookings.filter(
+    //   b => b.status === 'PENDENTE' && !isBookingPast(b.date, b.endTime)
+    // ).length,
 
-    finalizadas: bookings.filter(
-      b => isBookingPast(b.date, b.endTime)
-    ).length,
-  };
+    // aprovadas: bookings.filter(
+    //   b => b.status === 'APROVADA'
+    // ).length,
+
+    // rejeitadas: bookings.filter(
+    //   b => b.status === 'REJEITADA'
+    // ).length,
+
+    // finalizadas: bookings.filter(
+    //   b => b.status === 'FINALIZADA'
+    // ).length,  
 
   if (loading) {
     return (
@@ -242,7 +275,7 @@ export default function MinhasReservasPage() {
 
         <div className="mb-6 flex items-center gap-3">
           <Filter size={20} className="text-gray-600" />
-          {['TODAS', 'PENDENTE', 'APROVADA', 'REJEITADA'].map((f) => (
+          {['TODAS', 'PENDENTE', 'APROVADA', 'REJEITADA', 'FINALIZADA'].map((f) => (
             <button
               key={f}
               onClick={() => setFilter(f as any)}
@@ -313,8 +346,8 @@ export default function MinhasReservasPage() {
 
                     <div className="flex lg:flex-col gap-2">
                       {isPast ? (
-                        <div className="px-4 py-2 bg-gray-300 text-gray-700 font-semibold rounded-lg text-center">
-                          Finalizada
+                        <div className="px-6 py-2 bg-gray-200 text-gray-400 font-semibold rounded-lg text-center">
+                          Expirada
                         </div>
                       ) : (
                         <button
