@@ -11,6 +11,11 @@ export default withAuth(
       return NextResponse.redirect(new URL('/dashboard', req.url));
     }
 
+    // Evita mostrar o login novamente para quem ja esta autenticado
+    if (path.startsWith('/login') && token) {
+      return NextResponse.redirect(new URL('/dashboard', req.url));
+    }
+
     // Proteção de rotas por role
     if (path.startsWith('/admin') && token?.role !== 'ADMIN') {
       return NextResponse.redirect(new URL('/dashboard', req.url));
@@ -43,10 +48,6 @@ export default withAuth(
 
 export const config = {
   matcher: [
-    '/',
-    '/dashboard/:path*',
-    '/professor/:path*',
-    '/admin/:path*',
-    '/perfil/:path*',
+    '/((?!api|_next/static|_next/image|favicon.ico).*)',
   ],
 };

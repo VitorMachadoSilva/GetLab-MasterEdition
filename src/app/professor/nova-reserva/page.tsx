@@ -15,17 +15,56 @@ interface Room {
   building: string;
 }
 
+interface Booking {
+  id: string;
+  course: string;
+  startTime: string;
+  endTime: string;
+  status: string;
+  room: {
+    id: string;
+    name: string;
+  };
+}
+
 const timeSlots = [
   '07:00', '08:00', '09:00', '10:00', '11:00', '12:00',
   '13:00', '14:00', '15:00', '16:00', '17:00', '18:00',
   '19:00', '20:00', '21:00', '22:00'
 ];
 
+const startTimeSlots = timeSlots.slice(0, -1);
+const endTimeSlots = timeSlots.slice(1);
+
+const timeToMinutes = (time: string) => {
+  const [hours, minutes] = time.split(':').map(Number);
+  return hours * 60 + minutes;
+};
+
+const rangesOverlap = (
+  firstStart: string,
+  firstEnd: string,
+  secondStart: string,
+  secondEnd: string
+) => timeToMinutes(firstStart) < timeToMinutes(secondEnd) &&
+  timeToMinutes(firstEnd) > timeToMinutes(secondStart);
+
+const getLocalDateInputValue = (offsetDays = 0) => {
+  const date = new Date();
+  date.setDate(date.getDate() + offsetDays);
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
 export default function NovaReservaPage() {
   const { data: session } = useSession();
   const router = useRouter();
   const [rooms, setRooms] = useState<Room[]>([]);
+  const [bookings, setBookings] = useState<Booking[]>([]);
   const [loading, setLoading] = useState(true);
+  const [availabilityLoading, setAvailabilityLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [errors, setErrors] = useState<{[key: string]: string}>({});
   const [formData, setFormData] = useState({
@@ -33,7 +72,7 @@ export default function NovaReservaPage() {
     course: '',
     startTime: '',
     endTime: '',
-    date: new Date(Date.now() + 86400000).toISOString().split('T')[0], // Tomorrow
+    date: getLocalDateInputValue(1),
     students: '',
     notes: '',
   });
@@ -41,6 +80,14 @@ export default function NovaReservaPage() {
   useEffect(() => {
     fetchRooms();
   }, []);
+
+  useEffect(() => {
+    if (formData.roomId && formData.date) {
+      fetchAvailability();
+    } else {
+      setBookings([]);
+    }
+  }, [formData.roomId, formData.date]);
 
   const fetchRooms = async () => {
     try {
@@ -57,6 +104,44 @@ export default function NovaReservaPage() {
       setLoading(false);
     }
   };
+
+  const fetchAvailability = async () => {
+    setAvailabilityLoading(true);
+
+    try {
+      const res = await fetch(`/api/bookings?date=${formData.date}&roomId=${formData.roomId}`);
+
+      if (res.ok) {
+        const data = await res.json();
+        setBookings(
+          data.filter((booking: Booking) =>
+            booking.status === 'PENDENTE' || booking.status === 'APROVADA'
+          )
+        );
+      } else {
+        toast.error('Erro ao carregar disponibilidade');
+      }
+    } catch (error) {
+      toast.error('Erro ao carregar disponibilidade');
+    } finally {
+      setAvailabilityLoading(false);
+    }
+  };
+
+  const getConflictingBookings = (startTime: string, endTime: string) => {
+    if (!startTime || !endTime) {
+      return [];
+    }
+
+    return bookings.filter((booking) =>
+      rangesOverlap(startTime, endTime, booking.startTime, booking.endTime)
+    );
+  };
+
+  const isSlotBusy = (startTime: string, endTime: string) =>
+    bookings.some((booking) =>
+      rangesOverlap(startTime, endTime, booking.startTime, booking.endTime)
+    );
 
   const validateForm = (): boolean => {
     const newErrors: {[key: string]: string} = {};
@@ -75,7 +160,11 @@ export default function NovaReservaPage() {
       const now = new Date();
       const hoursDiff = (bookingDateTime.getTime() - now.getTime()) / (1000 * 60 * 60);
       
-      if (hoursDiff < 24) {
+      if (hoursDiff <= 0) {
+        newErrors.date = 'Data ou horário já passou';
+        newErrors.startTime = 'Data ou horário já passou';
+        toast.error('⚠️ Não é possível reservar data ou horário já passado');
+      } else if (session?.user?.role !== 'ADMIN' && hoursDiff < 24) {
         newErrors.date = 'Mínimo 24h de antecedência';
         newErrors.startTime = 'Mínimo 24h de antecedência';
         toast.error('⚠️ A reserva deve ser feita com no mínimo 24 horas de antecedência');
@@ -100,6 +189,14 @@ export default function NovaReservaPage() {
       if (formData.endTime <= formData.startTime) {
         newErrors.endTime = 'Horário de término deve ser após o início';
         toast.error('⚠️ Horário de término deve ser após o horário de início');
+      }
+
+      const conflictingBookings = getConflictingBookings(formData.startTime, formData.endTime);
+
+      if (conflictingBookings.length > 0) {
+        newErrors.startTime = 'Horário indisponível';
+        newErrors.endTime = 'Horário indisponível';
+        toast.error('❌ Este horário já possui reserva pendente ou aprovada');
       }
     }
 
@@ -152,6 +249,17 @@ export default function NovaReservaPage() {
   if (loading) return <LoadingSpinner />;
 
   const selectedRoom = rooms.find(r => r.id === formData.roomId);
+  const isAdmin = session?.user?.role === 'ADMIN';
+  const minDate = isAdmin ? getLocalDateInputValue() : getLocalDateInputValue(1);
+  const selectedConflicts = getConflictingBookings(formData.startTime, formData.endTime);
+  const availabilitySlots = startTimeSlots.map((startTime, index) => ({
+    startTime,
+    endTime: timeSlots[index + 1],
+    busyBookings: bookings.filter((booking) =>
+      rangesOverlap(startTime, timeSlots[index + 1], booking.startTime, booking.endTime)
+    ),
+  }));
+  const sortedBookings = [...bookings].sort((a, b) => a.startTime.localeCompare(b.startTime));
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-50 p-6">
@@ -201,8 +309,13 @@ export default function NovaReservaPage() {
               <select
                 value={formData.roomId}
                 onChange={(e) => {
-                  setFormData({ ...formData, roomId: e.target.value });
-                  setErrors({ ...errors, roomId: '' });
+                  setFormData({
+                    ...formData,
+                    roomId: e.target.value,
+                    startTime: '',
+                    endTime: '',
+                  });
+                  setErrors({ ...errors, roomId: '', startTime: '', endTime: '' });
                 }}
                 required
                 className={`w-full px-4 py-3.5 border-2 rounded-xl focus:ring-4 focus:ring-primary-100 outline-none transition-all font-medium ${
@@ -255,10 +368,15 @@ export default function NovaReservaPage() {
                   type="date"
                   value={formData.date}
                   onChange={(e) => {
-                    setFormData({ ...formData, date: e.target.value });
-                    setErrors({ ...errors, date: '' });
+                    setFormData({
+                      ...formData,
+                      date: e.target.value,
+                      startTime: '',
+                      endTime: '',
+                    });
+                    setErrors({ ...errors, date: '', startTime: '', endTime: '' });
                   }}
-                  min={new Date(Date.now() + 86400000).toISOString().split('T')[0]}
+                  min={minDate}
                   required
                   className={`w-full px-4 py-3.5 border-2 rounded-xl focus:ring-4 focus:ring-primary-100 outline-none transition-all ${
                     errors.date ? 'border-red-500 bg-red-50' : 'border-gray-200 focus:border-primary-500'
@@ -294,6 +412,106 @@ export default function NovaReservaPage() {
               </div>
             </div>
 
+            {/* Disponibilidade */}
+            {selectedRoom && (
+              <div className="rounded-2xl border-2 border-primary-100 bg-primary-50/60 p-5">
+                <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <h2 className="text-lg font-black text-gray-900">
+                      Disponibilidade de {selectedRoom.name}
+                    </h2>
+                    <p className="text-sm text-gray-600">
+                      Blocos ocupados consideram reservas pendentes e aprovadas.
+                    </p>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={fetchAvailability}
+                    disabled={availabilityLoading}
+                    className="rounded-xl border-2 border-primary-200 bg-white px-4 py-2 text-sm font-bold text-primary-700 transition-all hover:border-primary-400 disabled:opacity-60"
+                  >
+                    {availabilityLoading ? 'Atualizando...' : 'Atualizar agenda'}
+                  </button>
+                </div>
+
+                {availabilityLoading ? (
+                  <div className="rounded-xl bg-white p-4 text-center text-sm font-semibold text-gray-500">
+                    Carregando disponibilidade...
+                  </div>
+                ) : (
+                  <>
+                    <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
+                      {availabilitySlots.map((slot) => {
+                        const busy = slot.busyBookings.length > 0;
+
+                        return (
+                          <div
+                            key={slot.startTime}
+                            className={`rounded-xl border-2 p-3 transition-all ${
+                              busy
+                                ? 'border-red-200 bg-red-50 text-red-800'
+                                : 'border-green-200 bg-green-50 text-green-800'
+                            }`}
+                          >
+                            <div className="text-sm font-black">
+                              {slot.startTime} - {slot.endTime}
+                            </div>
+                            <div className="mt-1 text-xs font-bold">
+                              {busy ? 'Ocupado' : 'Livre'}
+                            </div>
+                            {busy && (
+                              <div className="mt-2 space-y-1">
+                                {slot.busyBookings.map((booking) => (
+                                  <div key={booking.id} className="truncate text-xs">
+                                    {booking.course} ({booking.status})
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+
+                    {sortedBookings.length > 0 ? (
+                      <div className="mt-4 rounded-xl bg-white p-4">
+                        <p className="mb-2 text-sm font-black text-gray-800">
+                          Reservas existentes no dia
+                        </p>
+                        <div className="grid gap-2">
+                          {sortedBookings.map((booking) => (
+                            <div
+                              key={booking.id}
+                              className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-gray-50 px-3 py-2 text-sm"
+                            >
+                              <span className="font-bold text-gray-800">
+                                {booking.startTime} - {booking.endTime}
+                              </span>
+                              <span className="min-w-0 flex-1 truncate text-gray-600">
+                                {booking.course}
+                              </span>
+                              <span className={`rounded-full px-2 py-1 text-xs font-black ${
+                                booking.status === 'APROVADA'
+                                  ? 'bg-green-100 text-green-700'
+                                  : 'bg-yellow-100 text-yellow-700'
+                              }`}>
+                                {booking.status}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="mt-4 rounded-xl bg-white p-4 text-center text-sm font-semibold text-green-700">
+                        Nenhuma reserva pendente ou aprovada para esta sala nessa data.
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
+            )}
+
             {/* Horários */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
@@ -304,7 +522,7 @@ export default function NovaReservaPage() {
                 <select
                   value={formData.startTime}
                   onChange={(e) => {
-                    setFormData({ ...formData, startTime: e.target.value });
+                    setFormData({ ...formData, startTime: e.target.value, endTime: '' });
                     setErrors({ ...errors, startTime: '', endTime: '' });
                   }}
                   required
@@ -313,9 +531,16 @@ export default function NovaReservaPage() {
                   }`}
                 >
                   <option value="">Selecione...</option>
-                  {timeSlots.map((time) => (
-                    <option key={time} value={time}>{time}</option>
-                  ))}
+                  {startTimeSlots.map((time, index) => {
+                    const nextTime = timeSlots[index + 1];
+                    const disabled = formData.roomId ? isSlotBusy(time, nextTime) : false;
+
+                    return (
+                      <option key={time} value={time} disabled={disabled}>
+                        {time}{disabled ? ' - ocupado' : ''}
+                      </option>
+                    );
+                  })}
                 </select>
                 {errors.startTime && (
                   <p className="mt-2 text-sm text-red-600 font-semibold">⚠️ {errors.startTime}</p>
@@ -339,15 +564,35 @@ export default function NovaReservaPage() {
                   }`}
                 >
                   <option value="">Selecione...</option>
-                  {timeSlots.map((time) => (
-                    <option key={time} value={time}>{time}</option>
-                  ))}
+                  {endTimeSlots.map((time) => {
+                    const disabled = formData.startTime
+                      ? time <= formData.startTime ||
+                        getConflictingBookings(formData.startTime, time).length > 0
+                      : false;
+
+                    return (
+                      <option key={time} value={time} disabled={disabled}>
+                        {time}{disabled && formData.startTime ? ' - indisponível' : ''}
+                      </option>
+                    );
+                  })}
                 </select>
                 {errors.endTime && (
                   <p className="mt-2 text-sm text-red-600 font-semibold">⚠️ {errors.endTime}</p>
                 )}
               </div>
             </div>
+
+            {selectedConflicts.length > 0 && (
+              <div className="rounded-xl border-2 border-red-200 bg-red-50 p-4 text-sm text-red-800">
+                <p className="font-black">Horário selecionado indisponível</p>
+                <p className="mt-1">
+                  Conflita com: {selectedConflicts.map((booking) =>
+                    `${booking.course} (${booking.startTime}-${booking.endTime})`
+                  ).join(', ')}
+                </p>
+              </div>
+            )}
 
             {/* Observações */}
             <div>

@@ -3,42 +3,133 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 
+const activeBookingStatuses = ['PENDENTE', 'APROVADA'] as const;
+const businessHours = {
+  start: 7 * 60,
+  end: 22 * 60,
+};
+
+function parseDateOnly(date: string) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+    return null;
+  }
+
+  const [year, month, day] = date.split('-').map(Number);
+  const dateObj = new Date(year, month - 1, day);
+
+  if (
+    dateObj.getFullYear() !== year ||
+    dateObj.getMonth() !== month - 1 ||
+    dateObj.getDate() !== day
+  ) {
+    return null;
+  }
+
+  return {
+    dateObj,
+    startDate: new Date(year, month - 1, day, 0, 0, 0, 0),
+    endDate: new Date(year, month - 1, day, 23, 59, 59, 999),
+  };
+}
+
+function timeToMinutes(time: string) {
+  if (!/^\d{2}:\d{2}$/.test(time)) {
+    return Number.NaN;
+  }
+
+  const [hours, minutes] = time.split(':').map(Number);
+  if (hours < 0 || hours > 23 || minutes < 0 || minutes > 59) {
+    return Number.NaN;
+  }
+
+  return hours * 60 + minutes;
+}
+
 // GET - Listar reservas
 export async function GET(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
-    
-    if (!session?.user) {
-      return NextResponse.json({ error: 'Não autenticado' }, { status: 401 });
-    }
-
     const { searchParams } = new URL(request.url);
     const date = searchParams.get('date');
     const status = searchParams.get('status');
     const professorId = searchParams.get('professorId');
+    const roomId = searchParams.get('roomId');
+    const publicView = searchParams.get('public') === 'true';
+    const session = await getServerSession(authOptions);
+
+    if (!session?.user && !publicView) {
+      return NextResponse.json({ error: 'Não autenticado' }, { status: 401 });
+    }
+
+    if (publicView && (!date || professorId || status !== 'APROVADA')) {
+      return NextResponse.json(
+        { error: 'Consulta pública inválida' },
+        { status: 400 }
+      );
+    }
 
     const where: any = {};
 
     // Filtrar por data - usa range para pegar qualquer hora do dia
     if (date) {
-      const [year, month, day] = date.split('-').map(Number);
-      const startDate = new Date(year, month - 1, day, 0, 0, 0, 0);
-      const endDate = new Date(year, month - 1, day, 23, 59, 59, 999);
+      const parsedDate = parseDateOnly(date);
+
+      if (!parsedDate) {
+        return NextResponse.json({ error: 'Data inválida' }, { status: 400 });
+      }
       
       where.date = {
-        gte: startDate,
-        lte: endDate,
+        gte: parsedDate.startDate,
+        lte: parsedDate.endDate,
       };
     }
 
     // Filtrar por status
-    if (status) {
+    if (publicView) {
+      where.status = 'APROVADA';
+    } else if (status) {
       where.status = status;
     }
 
     // Filtrar por professor (para ver "Minhas Reservas")
     if (professorId) {
       where.professorId = professorId;
+    }
+
+    if (roomId) {
+      where.roomId = roomId;
+    }
+
+    if (publicView) {
+      const bookings = await prisma.booking.findMany({
+        where,
+        select: {
+          id: true,
+          course: true,
+          startTime: true,
+          endTime: true,
+          date: true,
+          students: true,
+          room: {
+            select: {
+              id: true,
+              name: true,
+              type: true,
+              building: true,
+            },
+          },
+          professor: {
+            select: {
+              name: true,
+            },
+          },
+        },
+        orderBy: [
+          { date: 'asc' },
+          { startTime: 'asc' },
+        ],
+      });
+
+      return NextResponse.json(bookings);
     }
 
     const bookings = await prisma.booking.findMany({
@@ -97,6 +188,78 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const courseName = typeof course === 'string' ? course.trim() : '';
+    const bookingNotes = typeof notes === 'string' ? notes.trim() : '';
+
+    if (!courseName) {
+      return NextResponse.json(
+        { error: 'Disciplina/evento é obrigatório' },
+        { status: 400 }
+      );
+    }
+
+    const parsedDate = parseDateOnly(date);
+
+    if (!parsedDate) {
+      return NextResponse.json({ error: 'Data inválida' }, { status: 400 });
+    }
+
+    const startMinutes = timeToMinutes(startTime);
+    const endMinutes = timeToMinutes(endTime);
+
+    if (Number.isNaN(startMinutes) || Number.isNaN(endMinutes)) {
+      return NextResponse.json({ error: 'Horário inválido' }, { status: 400 });
+    }
+
+    if (endMinutes <= startMinutes) {
+      return NextResponse.json(
+        { error: 'Horário de término deve ser após o início' },
+        { status: 400 }
+      );
+    }
+
+    if (endMinutes - startMinutes < 60) {
+      return NextResponse.json(
+        { error: 'A reserva deve ter no mínimo 1 hora de duração' },
+        { status: 400 }
+      );
+    }
+
+    if (startMinutes < businessHours.start || endMinutes > businessHours.end) {
+      return NextResponse.json(
+        { error: 'Reservas devem ocorrer entre 07:00 e 22:00' },
+        { status: 400 }
+      );
+    }
+
+    const bookingDateTime = new Date(parsedDate.dateObj);
+    bookingDateTime.setHours(Math.floor(startMinutes / 60), startMinutes % 60, 0, 0);
+
+    const hoursDiff = (bookingDateTime.getTime() - Date.now()) / (1000 * 60 * 60);
+
+    if (hoursDiff <= 0) {
+      return NextResponse.json(
+        { error: 'Não é possível criar reserva para data ou horário já passado' },
+        { status: 400 }
+      );
+    }
+
+    if (session.user.role !== 'ADMIN' && hoursDiff < 24) {
+      return NextResponse.json(
+        { error: 'A reserva deve ser feita com no mínimo 24 horas de antecedência' },
+        { status: 400 }
+      );
+    }
+
+    const studentsCount = Number(students);
+
+    if (!Number.isInteger(studentsCount) || studentsCount < 1) {
+      return NextResponse.json(
+        { error: 'Número de alunos inválido' },
+        { status: 400 }
+      );
+    }
+
     // Verificar se a sala existe
     const room = await prisma.room.findUnique({
       where: { id: roomId },
@@ -106,46 +269,30 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Sala não encontrada' }, { status: 404 });
     }
 
+    if (!room.active) {
+      return NextResponse.json({ error: 'Sala inativa' }, { status: 400 });
+    }
+
     // Verificar capacidade
-    if (students > room.capacity) {
+    if (studentsCount > room.capacity) {
       return NextResponse.json(
         { error: `Sala comporta apenas ${room.capacity} alunos` },
         { status: 400 }
       );
     }
 
-    // Verificar conflitos de horário
-    // Cria data no formato local sem conversão UTC
-    const [year, month, day] = date.split('-').map(Number);
-    const dateObj = new Date(year, month - 1, day);
-    
     const conflicts = await prisma.booking.findMany({
       where: {
         roomId,
-        date: dateObj,
-        status: {
-          in: ['PENDENTE', 'APROVADA'],
+        date: {
+          gte: parsedDate.startDate,
+          lte: parsedDate.endDate,
         },
-        OR: [
-          {
-            AND: [
-              { startTime: { lte: startTime } },
-              { endTime: { gt: startTime } },
-            ],
-          },
-          {
-            AND: [
-              { startTime: { lt: endTime } },
-              { endTime: { gte: endTime } },
-            ],
-          },
-          {
-            AND: [
-              { startTime: { gte: startTime } },
-              { endTime: { lte: endTime } },
-            ],
-          },
-        ],
+        status: {
+          in: [...activeBookingStatuses],
+        },
+        startTime: { lt: endTime },
+        endTime: { gt: startTime },
       },
     });
 
@@ -168,12 +315,12 @@ export async function POST(request: NextRequest) {
       data: {
         roomId,
         professorId: session.user.id,
-        course,
+        course: courseName,
         startTime,
         endTime,
-        date: dateObj,
-        students: parseInt(students),
-        notes,
+        date: parsedDate.dateObj,
+        students: studentsCount,
+        notes: bookingNotes || null,
         status: session.user.role === 'ADMIN' ? 'APROVADA' : 'PENDENTE',
       },
       include: {

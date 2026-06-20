@@ -35,7 +35,7 @@ export default function DisplayPage() {
       const d = new Date();
       const today = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
       
-      const res = await fetch(`/api/bookings?date=${today}&status=APROVADA`);
+      const res = await fetch(`/api/bookings?date=${today}&status=APROVADA&public=true`);
       if (res.ok) {
         const data = await res.json();
         // Ordenar por horário

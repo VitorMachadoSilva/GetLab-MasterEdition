@@ -2,12 +2,10 @@
 
 import { useState } from 'react';
 import { signIn } from 'next-auth/react';
-import { useRouter } from 'next/navigation';
-import { LogIn, Mail, Lock, AlertCircle, Sparkles } from 'lucide-react';
+import { LogIn, Mail, Lock, AlertCircle } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 export default function LoginPage() {
-  const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({ email: '', password: '' });
 
@@ -20,21 +18,23 @@ export default function LoginPage() {
         email: formData.email,
         password: formData.password,
         redirect: false,
+        callbackUrl: '/dashboard',
       });
 
       if (result?.error) {
         toast.error(result.error);
+        setLoading(false);
       } else if (result?.ok) {
         toast.success('Login realizado com sucesso!');
         setTimeout(() => {
           toast.dismiss();
-          router.push('/dashboard');
-          router.refresh();
+          window.location.assign(result.url || '/dashboard');
         }, 1000);
+      } else {
+        setLoading(false);
       }
     } catch (error) {
       toast.error('Erro ao fazer login');
-    } finally {
       setLoading(false);
     }
   };

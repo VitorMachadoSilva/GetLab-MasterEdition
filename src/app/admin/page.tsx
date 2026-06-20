@@ -49,6 +49,9 @@ export default function AdminPage() {
       if (res.ok) {
         toast.success('Reserva aprovada!');
         fetchData();
+      } else {
+        const data = await res.json();
+        toast.error(data.error || 'Erro ao aprovar');
       }
     } catch (error) {
       toast.error('Erro ao aprovar');
@@ -56,16 +59,26 @@ export default function AdminPage() {
   };
 
   const handleReject = async (bookingId: string) => {
+    const reason = prompt('Informe o motivo da rejeição:')?.trim();
+
+    if (!reason) {
+      toast.error('Informe um motivo para rejeitar a reserva');
+      return;
+    }
+
     try {
       const res = await fetch(`/api/bookings/${bookingId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: 'REJEITADA' }),
+        body: JSON.stringify({ status: 'REJEITADA', reason }),
       });
 
       if (res.ok) {
         toast.success('Reserva rejeitada');
         fetchData();
+      } else {
+        const data = await res.json();
+        toast.error(data.error || 'Erro ao rejeitar');
       }
     } catch (error) {
       toast.error('Erro ao rejeitar');
@@ -231,6 +244,7 @@ export default function AdminPage() {
                         <span className={`px-2 py-1 rounded text-xs font-bold ${
                           booking.status === 'APROVADA' ? 'bg-green-100 text-green-800' :
                           booking.status === 'PENDENTE' ? 'bg-yellow-100 text-yellow-800' :
+                          booking.status === 'CANCELADA' ? 'bg-gray-100 text-gray-800' :
                           'bg-red-100 text-red-800'
                         }`}>
                           {booking.status}
