@@ -242,7 +242,7 @@ export default function AdminPage() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-primary-50 via-white to-secondary-50 p-4 sm:p-6">
       <div className="max-w-7xl mx-auto">
-        <div className="mb-8">
+        <div className="mb-8" data-tour="admin-header">
           <h1 className="text-4xl font-black text-gray-900 mb-2">Painel Administrativo</h1>
           <p className="text-gray-600">Gerencie usuários e reservas do sistema</p>
 
@@ -256,7 +256,7 @@ export default function AdminPage() {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-8">
+        <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-8" data-tour="admin-metricas">
           <MetricCard label="Total Reservas" value={stats.totalBookings} />
           <MetricCard label="Pendentes" value={stats.pending} tone="yellow" />
           <MetricCard label="Aprovadas" value={stats.approved} tone="green" />
@@ -264,7 +264,7 @@ export default function AdminPage() {
           <MetricCard label="Total Usuários" value={stats.totalUsers} tone="blue" />
         </div>
 
-        <div className="flex flex-wrap gap-2 mb-6">
+        <div className="flex flex-wrap gap-2 mb-6" data-tour="admin-tabs">
           <button
             onClick={() => setActiveTab('bookings')}
             className={`px-6 py-3 rounded-lg font-bold transition-all ${
@@ -291,7 +291,7 @@ export default function AdminPage() {
 
         {activeTab === 'bookings' && (
           <div className="space-y-8">
-            <section>
+            <section data-tour="admin-pendentes">
               <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                 <div>
                   <h2 className="text-2xl font-black text-gray-900">Pendentes de Aprovação</h2>
@@ -375,7 +375,7 @@ export default function AdminPage() {
               )}
             </section>
 
-            <section>
+            <section data-tour="admin-historico">
               <div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
                 <div>
                   <h2 className="text-2xl font-black text-gray-900">Todas as Reservas</h2>

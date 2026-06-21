@@ -215,7 +215,7 @@ export default function GerenciarUsuariosPage() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-50 p-4 sm:p-6">
       <div className="max-w-7xl mx-auto">
-        <div className="mb-8 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+        <div className="mb-8 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between" data-tour="admin-usuarios-header">
           <div>
             <h1 className="text-4xl font-black text-gray-900">Gerenciar Usuários</h1>
             <p className="text-gray-600 mt-2">Adicione e gerencie usuários do sistema</p>
@@ -236,7 +236,7 @@ export default function GerenciarUsuariosPage() {
           <MetricCard label="Admins" value={stats.admins} tone="red" />
         </div>
 
-        <div className="mb-6 rounded-2xl border-2 border-gray-200 bg-white p-4 shadow-sm">
+        <div className="mb-6 rounded-2xl border-2 border-gray-200 bg-white p-4 shadow-sm" data-tour="admin-usuarios-filtros">
           <div className="grid grid-cols-1 gap-3 lg:grid-cols-[1fr_auto] lg:items-center">
             <label className="relative block">
               <Search size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" />
@@ -276,7 +276,7 @@ export default function GerenciarUsuariosPage() {
 
         {filteredUsers.length > 0 ? (
           <>
-            <div className="hidden overflow-hidden rounded-2xl border-2 border-gray-200 bg-white shadow-xl lg:block">
+            <div className="hidden overflow-hidden rounded-2xl border-2 border-gray-200 bg-white shadow-xl lg:block" data-tour="admin-usuarios-lista">
               <div className="overflow-x-auto">
                 <table className="w-full min-w-[900px]">
                   <thead className="bg-gradient-to-r from-primary-500 to-secondary-500 text-white">
@@ -311,7 +311,7 @@ export default function GerenciarUsuariosPage() {
               </div>
             </div>
 
-            <div className="grid gap-4 lg:hidden">
+            <div className="grid gap-4 lg:hidden" data-tour="admin-usuarios-lista">
               {filteredUsers.map((user) => (
                 <div key={user.id} className="rounded-2xl border-2 border-gray-200 bg-white p-5 shadow-sm">
                   <div className="mb-3 flex items-start justify-between gap-3">

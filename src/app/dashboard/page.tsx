@@ -5,9 +5,6 @@ import { useSession } from 'next-auth/react';
 import { MapPin, Clock, Users, Calendar, RefreshCw } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { LoadingSpinner } from '@/components/Loading';
-import CustomJoyride from '@/components/CustomJoyride';
-import TutorialButton from '@/components/TutorialButton';
-import { useTutorial } from '@/hooks/useTutorial';
 import { readApiError } from '@/lib/api-client';
 
 interface Booking {
@@ -37,9 +34,6 @@ export default function DashboardPage() {
   };
   
   const [selectedDate, setSelectedDate] = useState(getLocalDateString());
-
-  // Tutorial
-  const { run, steps, handleJoyrideCallback, startTutorial } = useTutorial(session?.user?.role);
 
   useEffect(() => {
     fetchTodayBookings();
@@ -80,10 +74,6 @@ export default function DashboardPage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 p-4">
-      {/* Tutorial Components */}
-      <CustomJoyride run={run} steps={steps} onCallback={handleJoyrideCallback} />
-      <TutorialButton onStart={startTutorial} />
-      
       <div className="max-w-7xl mx-auto">
         {/* Header - COMPACTO */}
         <div className="mb-6 animate-fade-in-up" data-tour="dashboard-header">

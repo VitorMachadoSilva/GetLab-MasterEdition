@@ -140,7 +140,7 @@ export default function MinhasReservasPage() {
     <div className="min-h-screen bg-gradient-to-br from-primary-50 via-white to-secondary-50 p-6">
       <div className="max-w-7xl mx-auto">
         {/* Header */}
-        <div className="mb-8">
+        <div className="mb-8" data-tour="minhas-reservas-header">
           <button
             onClick={() => router.push('/dashboard')}
             className="text-primary-600 hover:text-primary-700 mb-4 flex items-center gap-2"
@@ -166,7 +166,7 @@ export default function MinhasReservasPage() {
         </div>
 
         {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-8">
+        <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-8" data-tour="minhas-reservas-stats">
           <div className="bg-white rounded-xl p-6 border-2 border-gray-200">
             <div className="text-3xl font-black text-gray-900">{stats.total}</div>
             <div className="text-sm text-gray-600 font-medium">Total</div>
@@ -190,7 +190,7 @@ export default function MinhasReservasPage() {
         </div>
 
         {/* Filters */}
-        <div className="mb-6 flex flex-wrap items-center gap-3">
+        <div className="mb-6 flex flex-wrap items-center gap-3" data-tour="minhas-reservas-filtros">
           <Filter size={20} className="text-gray-600" />
           <button
             onClick={() => setFilter('TODAS')}
@@ -246,7 +246,7 @@ export default function MinhasReservasPage() {
 
         {/* Bookings List */}
         {filteredBookings.length > 0 ? (
-          <div className="grid gap-4">
+          <div className="grid gap-4" data-tour="minhas-reservas-lista">
             {filteredBookings.map((booking) => (
               <div
                 key={booking.id}
@@ -311,7 +311,7 @@ export default function MinhasReservasPage() {
             ))}
           </div>
         ) : (
-          <div className="bg-white rounded-xl p-12 text-center border-2 border-gray-200">
+          <div className="bg-white rounded-xl p-12 text-center border-2 border-gray-200" data-tour="minhas-reservas-lista">
             <Calendar size={64} className="mx-auto mb-4 text-gray-300" />
             <p className="text-xl text-gray-500 mb-4">
               {filter === 'TODAS' ? 'Você ainda não tem reservas' : `Nenhuma reserva ${filter.toLowerCase()}`}

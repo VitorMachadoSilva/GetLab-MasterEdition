@@ -5,6 +5,7 @@ import { SessionProviderWrapper } from '@/components/SessionProvider';
 import { ToastManager } from '@/components/ToastManager';
 import AuthSessionGuard from '@/components/AuthSessionGuard';
 import Navbar from '@/components/Navbar';
+import GuidedTutorial from '@/components/GuidedTutorial';
 import { Toaster } from 'react-hot-toast';
 
 const inter = Inter({ subsets: ['latin'] });
@@ -31,6 +32,7 @@ export default function RootLayout({
           <ToastManager />
           <AuthSessionGuard />
           <Navbar />
+          <GuidedTutorial />
           <Toaster 
             position="top-right"
             toastOptions={{
