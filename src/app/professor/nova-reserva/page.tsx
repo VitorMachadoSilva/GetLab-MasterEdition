@@ -59,6 +59,45 @@ const getLocalDateInputValue = (offsetDays = 0) => {
   return `${year}-${month}-${day}`;
 };
 
+const parseLocalDateInput = (date: string) => {
+  const [year, month, day] = date.split('-').map(Number);
+  return new Date(year, month - 1, day);
+};
+
+const getDateOptions = (startDate: string, days = 7) => {
+  const firstDate = parseLocalDateInput(startDate);
+
+  return Array.from({ length: days }, (_, index) => {
+    const date = new Date(firstDate);
+    date.setDate(firstDate.getDate() + index);
+
+    const value = [
+      date.getFullYear(),
+      String(date.getMonth() + 1).padStart(2, '0'),
+      String(date.getDate()).padStart(2, '0'),
+    ].join('-');
+
+    return {
+      value,
+      day: date.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }),
+      weekday: date.toLocaleDateString('pt-BR', { weekday: 'short' }).replace('.', ''),
+    };
+  });
+};
+
+const getRoomTypeLabel = (type: string) => {
+  switch (type) {
+    case 'LABORATORIO':
+      return 'Laboratório';
+    case 'AUDITORIO':
+      return 'Auditório';
+    case 'SALA_AULA':
+      return 'Sala de Aula';
+    default:
+      return type;
+  }
+};
+
 export default function NovaReservaPage() {
   const { data: session } = useSession();
   const router = useRouter();
@@ -259,10 +298,50 @@ export default function NovaReservaPage() {
     ),
   }));
   const sortedBookings = [...bookings].sort((a, b) => a.startTime.localeCompare(b.startTime));
+  const quickDateOptions = getDateOptions(minDate, 7);
+  const busySlotsCount = availabilitySlots.filter((slot) => slot.busyBookings.length > 0).length;
+  const freeSlotsCount = availabilitySlots.length - busySlotsCount;
+  const occupancyPercentage = Math.round((busySlotsCount / availabilitySlots.length) * 100);
+  const selectedDuration = formData.startTime && formData.endTime
+    ? (timeToMinutes(formData.endTime) - timeToMinutes(formData.startTime)) / 60
+    : 0;
+
+  const handleDateChange = (date: string) => {
+    setFormData({
+      ...formData,
+      date,
+      startTime: '',
+      endTime: '',
+    });
+    setErrors({ ...errors, date: '', startTime: '', endTime: '' });
+  };
+
+  const handleSlotClick = (slot: { startTime: string; endTime: string; busyBookings: Booking[] }) => {
+    if (slot.busyBookings.length > 0) {
+      toast.error('Este bloco já está ocupado. Escolha um horário livre.');
+      return;
+    }
+
+    setFormData({
+      ...formData,
+      startTime: slot.startTime,
+      endTime: slot.endTime,
+    });
+    setErrors({ ...errors, startTime: '', endTime: '' });
+  };
+
+  const clearSelectedTime = () => {
+    setFormData({
+      ...formData,
+      startTime: '',
+      endTime: '',
+    });
+    setErrors({ ...errors, startTime: '', endTime: '' });
+  };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-50 p-6">
-      <div className="max-w-4xl mx-auto">
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-50 p-4 sm:p-6">
+      <div className="max-w-5xl mx-auto">
         {/* Header */}
         <div className="mb-8">
           <button
@@ -297,7 +376,7 @@ export default function NovaReservaPage() {
         </div>
 
         {/* Form */}
-        <form onSubmit={handleSubmit} className="bg-white rounded-2xl shadow-xl p-8 border-2 border-gray-100">
+        <form onSubmit={handleSubmit} className="bg-white rounded-2xl shadow-xl p-5 sm:p-8 border-2 border-gray-100">
           <div className="space-y-6">
             {/* Sala */}
             <div>
@@ -330,7 +409,7 @@ export default function NovaReservaPage() {
               </select>
               {selectedRoom && (
                 <p className="mt-2 text-sm text-gray-600 bg-gray-50 p-3 rounded-lg">
-                  📍 <strong>{selectedRoom.type}</strong> • Capacidade: {selectedRoom.capacity} pessoas
+                  📍 <strong>{getRoomTypeLabel(selectedRoom.type)}</strong> • Capacidade: {selectedRoom.capacity} pessoas
                 </p>
               )}
             </div>
@@ -366,21 +445,30 @@ export default function NovaReservaPage() {
                 <input
                   type="date"
                   value={formData.date}
-                  onChange={(e) => {
-                    setFormData({
-                      ...formData,
-                      date: e.target.value,
-                      startTime: '',
-                      endTime: '',
-                    });
-                    setErrors({ ...errors, date: '', startTime: '', endTime: '' });
-                  }}
+                  onChange={(e) => handleDateChange(e.target.value)}
                   min={minDate}
                   required
                   className={`w-full px-4 py-3.5 border-2 rounded-xl focus:ring-4 focus:ring-primary-100 outline-none transition-all ${
                     errors.date ? 'border-red-500 bg-red-50' : 'border-gray-200 focus:border-primary-500'
                   }`}
                 />
+                <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
+                  {quickDateOptions.map((option) => (
+                    <button
+                      key={option.value}
+                      type="button"
+                      onClick={() => handleDateChange(option.value)}
+                      className={`rounded-xl border-2 px-3 py-2 text-left transition-all ${
+                        formData.date === option.value
+                          ? 'border-primary-500 bg-primary-50 text-primary-800 shadow-sm'
+                          : 'border-gray-200 bg-white text-gray-600 hover:border-primary-300 hover:bg-primary-50'
+                      }`}
+                    >
+                      <span className="block text-xs font-black uppercase">{option.weekday}</span>
+                      <span className="block text-sm font-bold">{option.day}</span>
+                    </button>
+                  ))}
+                </div>
                 {errors.date && (
                   <p className="mt-2 text-sm text-red-600 font-semibold">⚠️ {errors.date}</p>
                 )}
@@ -420,7 +508,7 @@ export default function NovaReservaPage() {
                       Disponibilidade de {selectedRoom.name}
                     </h2>
                     <p className="text-sm text-gray-600">
-                      Blocos ocupados consideram reservas pendentes e aprovadas.
+                      Clique em um bloco livre para selecionar uma reserva de 1 hora. Você ainda pode ajustar o término abaixo.
                     </p>
                   </div>
 
@@ -434,6 +522,31 @@ export default function NovaReservaPage() {
                   </button>
                 </div>
 
+                <div className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
+                  <div className="rounded-xl border-2 border-green-200 bg-white p-4">
+                    <div className="text-2xl font-black text-green-700">{freeSlotsCount}</div>
+                    <div className="text-xs font-bold uppercase text-green-700">blocos livres</div>
+                  </div>
+                  <div className="rounded-xl border-2 border-red-200 bg-white p-4">
+                    <div className="text-2xl font-black text-red-700">{busySlotsCount}</div>
+                    <div className="text-xs font-bold uppercase text-red-700">blocos ocupados</div>
+                  </div>
+                  <div className="rounded-xl border-2 border-primary-200 bg-white p-4">
+                    <div className="flex items-end justify-between gap-3">
+                      <div>
+                        <div className="text-2xl font-black text-primary-700">{occupancyPercentage}%</div>
+                        <div className="text-xs font-bold uppercase text-primary-700">ocupação do dia</div>
+                      </div>
+                      <div className="h-2 flex-1 overflow-hidden rounded-full bg-gray-100">
+                        <div
+                          className="h-full rounded-full bg-gradient-to-r from-primary-500 to-secondary-500"
+                          style={{ width: `${occupancyPercentage}%` }}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
                 {availabilityLoading ? (
                   <div className="rounded-xl bg-white p-4 text-center text-sm font-semibold text-gray-500">
                     Carregando disponibilidade...
@@ -443,21 +556,29 @@ export default function NovaReservaPage() {
                     <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
                       {availabilitySlots.map((slot) => {
                         const busy = slot.busyBookings.length > 0;
+                        const selected = formData.startTime && formData.endTime
+                          ? rangesOverlap(slot.startTime, slot.endTime, formData.startTime, formData.endTime)
+                          : false;
 
                         return (
-                          <div
+                          <button
                             key={slot.startTime}
+                            type="button"
+                            onClick={() => handleSlotClick(slot)}
                             className={`rounded-xl border-2 p-3 transition-all ${
-                              busy
-                                ? 'border-red-200 bg-red-50 text-red-800'
-                                : 'border-green-200 bg-green-50 text-green-800'
+                              selected
+                                ? 'border-primary-500 bg-primary-600 text-white shadow-lg'
+                                : busy
+                                  ? 'border-red-200 bg-red-50 text-left text-red-800 cursor-not-allowed opacity-80'
+                                  : 'border-green-200 bg-green-50 text-left text-green-800 hover:border-green-400 hover:bg-green-100'
                             }`}
+                            aria-label={`${slot.startTime} até ${slot.endTime} ${busy ? 'ocupado' : 'livre'}`}
                           >
                             <div className="text-sm font-black">
                               {slot.startTime} - {slot.endTime}
                             </div>
                             <div className="mt-1 text-xs font-bold">
-                              {busy ? 'Ocupado' : 'Livre'}
+                              {selected ? 'Selecionado' : busy ? 'Ocupado' : 'Livre'}
                             </div>
                             {busy && (
                               <div className="mt-2 space-y-1">
@@ -468,7 +589,7 @@ export default function NovaReservaPage() {
                                 ))}
                               </div>
                             )}
-                          </div>
+                          </button>
                         );
                       })}
                     </div>
@@ -508,6 +629,29 @@ export default function NovaReservaPage() {
                     )}
                   </>
                 )}
+              </div>
+            )}
+
+            {formData.startTime && formData.endTime && (
+              <div className="rounded-2xl border-2 border-primary-200 bg-primary-50 p-4">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <p className="text-xs font-black uppercase text-primary-700">Horário selecionado</p>
+                    <p className="text-xl font-black text-primary-900">
+                      {formData.startTime} - {formData.endTime}
+                    </p>
+                    <p className="text-sm font-semibold text-primary-700">
+                      Duração: {selectedDuration.toLocaleString('pt-BR')} hora{selectedDuration === 1 ? '' : 's'}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={clearSelectedTime}
+                    className="rounded-xl border-2 border-primary-200 bg-white px-4 py-2 text-sm font-bold text-primary-700 transition-all hover:border-primary-400"
+                  >
+                    Limpar horário
+                  </button>
+                </div>
               </div>
             )}
 
