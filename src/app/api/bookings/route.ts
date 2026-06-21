@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
+import { UserRole } from '@prisma/client';
 
 const activeBookingStatuses = ['PENDENTE', 'APROVADA'] as const;
 const businessHours = {
@@ -169,8 +170,43 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Não autenticado' }, { status: 401 });
     }
 
+    const sessionEmail = session.user.email?.toLowerCase();
+
+    if (!sessionEmail) {
+      return NextResponse.json(
+        { error: 'Sessão inválida. Faça login novamente.' },
+        { status: 401 }
+      );
+    }
+
+    let currentUser = await prisma.user.findUnique({
+      where: { email: sessionEmail },
+    });
+
+    if (
+      !currentUser &&
+      session.user.role === 'ADMIN' &&
+      sessionEmail === process.env.ADMIN_EMAIL?.toLowerCase()
+    ) {
+      currentUser = await prisma.user.create({
+        data: {
+          email: sessionEmail,
+          cpf: 'ADMIN',
+          name: session.user.name || 'Administrador',
+          role: UserRole.ADMIN,
+        },
+      });
+    }
+
+    if (!currentUser) {
+      return NextResponse.json(
+        { error: 'Usuário da sessão não existe mais. Faça logout e entre novamente.' },
+        { status: 401 }
+      );
+    }
+
     // Apenas professores e admins podem criar reservas
-    if (session.user.role !== 'PROFESSOR' && session.user.role !== 'ADMIN') {
+    if (currentUser.role !== 'PROFESSOR' && currentUser.role !== 'ADMIN') {
       return NextResponse.json(
         { error: 'Apenas professores podem criar reservas' },
         { status: 403 }
@@ -244,7 +280,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (session.user.role !== 'ADMIN' && hoursDiff < 24) {
+    if (currentUser.role !== 'ADMIN' && hoursDiff < 24) {
       return NextResponse.json(
         { error: 'A reserva deve ser feita com no mínimo 24 horas de antecedência' },
         { status: 400 }
@@ -314,14 +350,14 @@ export async function POST(request: NextRequest) {
     const booking = await prisma.booking.create({
       data: {
         roomId,
-        professorId: session.user.id,
+        professorId: currentUser.id,
         course: courseName,
         startTime,
         endTime,
         date: parsedDate.dateObj,
         students: studentsCount,
         notes: bookingNotes || null,
-        status: session.user.role === 'ADMIN' ? 'APROVADA' : 'PENDENTE',
+        status: currentUser.role === 'ADMIN' ? 'APROVADA' : 'PENDENTE',
       },
       include: {
         room: true,

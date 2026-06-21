@@ -45,7 +45,7 @@ export async function POST(request: NextRequest) {
         name,
         type,
         capacity: parseInt(capacity),
-        building,
+        building: building?.trim() || 'Não informado',
         floor: floor ? parseInt(floor) : null,
         equipment: equipment || [],
       },
