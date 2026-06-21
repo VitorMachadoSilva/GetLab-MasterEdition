@@ -1,21 +1,28 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { signIn } from 'next-auth/react';
 import { LogIn, Mail, Lock, AlertCircle } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 export default function LoginPage() {
+  const [ready, setReady] = useState(false);
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({ email: '', password: '' });
 
+  useEffect(() => {
+    setReady(true);
+  }, []);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!ready || loading) return;
+
     setLoading(true);
 
     try {
       const result = await signIn('credentials', {
-        email: formData.email,
+        email: formData.email.trim().toLowerCase(),
         password: formData.password,
         redirect: false,
         callbackUrl: '/dashboard',
@@ -108,10 +115,15 @@ export default function LoginPage() {
 
               <button
                 type="submit"
-                disabled={loading}
+                disabled={!ready || loading}
                 className="btn-modern w-full bg-gradient-fmpsc text-white py-4 rounded-xl font-black text-lg shadow-modern hover:shadow-glow disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-3"
               >
-                {loading ? (
+                {!ready ? (
+                  <>
+                    <div className="w-6 h-6 border-3 border-white/30 border-t-white rounded-full animate-spin"></div>
+                    Preparando...
+                  </>
+                ) : loading ? (
                   <>
                     <div className="w-6 h-6 border-3 border-white/30 border-t-white rounded-full animate-spin"></div>
                     Entrando...
