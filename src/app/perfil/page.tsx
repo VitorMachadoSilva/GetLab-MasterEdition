@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { LoadingSpinner } from '@/components/Loading';
+import { readApiError } from '@/lib/api-client';
 
 interface UserData {
   id: string;
@@ -88,7 +89,7 @@ export default function PerfilPage() {
       ]);
 
       if (!userRes.ok) {
-        toast.error('Erro ao carregar dados do perfil');
+        toast.error(await readApiError(userRes, 'Não foi possível carregar os dados do perfil'));
         return;
       }
 
@@ -101,9 +102,11 @@ export default function PerfilPage() {
 
       if (bookingsRes.ok) {
         setBookings(await bookingsRes.json());
+      } else {
+        toast.error(await readApiError(bookingsRes, 'Não foi possível carregar o resumo de reservas'));
       }
     } catch (error) {
-      toast.error('Erro ao carregar perfil');
+      toast.error('Não foi possível carregar o perfil. Verifique sua conexão e tente novamente.');
     } finally {
       setLoading(false);
     }
@@ -132,11 +135,10 @@ export default function PerfilPage() {
         setEditing(false);
         fetchProfileData();
       } else {
-        const data = await res.json();
-        toast.error(data.error || 'Erro ao atualizar perfil');
+        toast.error(await readApiError(res, 'Não foi possível atualizar o perfil'));
       }
     } catch (error) {
-      toast.error('Erro ao atualizar perfil');
+      toast.error('Não foi possível atualizar o perfil. Verifique sua conexão e tente novamente.');
     } finally {
       setSaving(false);
     }

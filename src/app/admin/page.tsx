@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { Users, Calendar, Check, X, Trash2, RefreshCw, UserPlus } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { readApiError } from '@/lib/api-client';
 
 export default function AdminPage() {
   const [activeTab, setActiveTab] = useState<'bookings' | 'users'>('bookings');
@@ -25,14 +26,18 @@ export default function AdminPage() {
       if (bookingsRes.ok) {
         const bookingsData = await bookingsRes.json();
         setBookings(bookingsData);
+      } else {
+        toast.error(await readApiError(bookingsRes, 'Não foi possível carregar as reservas'));
       }
 
       if (usersRes.ok) {
         const usersData = await usersRes.json();
         setUsers(usersData);
+      } else {
+        toast.error(await readApiError(usersRes, 'Não foi possível carregar os usuários'));
       }
     } catch (error) {
-      toast.error('Erro ao carregar dados');
+      toast.error('Não foi possível carregar os dados do painel. Verifique sua conexão e tente novamente.');
     } finally {
       setLoading(false);
     }
@@ -50,11 +55,10 @@ export default function AdminPage() {
         toast.success('Reserva aprovada!');
         fetchData();
       } else {
-        const data = await res.json();
-        toast.error(data.error || 'Erro ao aprovar');
+        toast.error(await readApiError(res, 'Não foi possível aprovar a reserva'));
       }
     } catch (error) {
-      toast.error('Erro ao aprovar');
+      toast.error('Não foi possível aprovar a reserva. Verifique sua conexão e tente novamente.');
     }
   };
 
@@ -77,11 +81,10 @@ export default function AdminPage() {
         toast.success('Reserva rejeitada');
         fetchData();
       } else {
-        const data = await res.json();
-        toast.error(data.error || 'Erro ao rejeitar');
+        toast.error(await readApiError(res, 'Não foi possível rejeitar a reserva'));
       }
     } catch (error) {
-      toast.error('Erro ao rejeitar');
+      toast.error('Não foi possível rejeitar a reserva. Verifique sua conexão e tente novamente.');
     }
   };
 
@@ -96,9 +99,11 @@ export default function AdminPage() {
       if (res.ok) {
         toast.success('Reserva excluída');
         fetchData();
+      } else {
+        toast.error(await readApiError(res, 'Não foi possível excluir a reserva'));
       }
     } catch (error) {
-      toast.error('Erro ao excluir');
+      toast.error('Não foi possível excluir a reserva. Verifique sua conexão e tente novamente.');
     }
   };
 

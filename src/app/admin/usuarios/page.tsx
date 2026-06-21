@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { UserPlus, Edit2, Trash2, X } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { LoadingSpinner } from '@/components/Loading';
+import { readApiError } from '@/lib/api-client';
 
 export default function GerenciarUsuariosPage() {
   const [users, setUsers] = useState<any[]>([]);
@@ -24,10 +25,10 @@ export default function GerenciarUsuariosPage() {
         const data = await res.json();
         setUsers(data);
       } else {
-        toast.error('Erro ao carregar usuários');
+        toast.error(await readApiError(res, 'Não foi possível carregar os usuários'));
       }
     } catch (error) {
-      toast.error('Erro ao carregar usuários');
+      toast.error('Não foi possível carregar os usuários. Verifique sua conexão e tente novamente.');
     } finally {
       setLoading(false);
     }
@@ -71,11 +72,10 @@ export default function GerenciarUsuariosPage() {
         toast.success('✅ Usuário excluído com sucesso!');
         fetchUsers();
       } else {
-        const data = await res.json();
-        toast.error(data.error || 'Erro ao excluir usuário');
+        toast.error(await readApiError(res, 'Não foi possível excluir o usuário'));
       }
     } catch (error) {
-      toast.error('Erro ao excluir usuário');
+      toast.error('Não foi possível excluir o usuário. Verifique sua conexão e tente novamente.');
     }
   };
 
@@ -92,23 +92,15 @@ export default function GerenciarUsuariosPage() {
         body: JSON.stringify(formData),
       });
       
-      const data = await res.json();
-      
       if (res.ok) {
         toast.success(editingUser ? '✅ Usuário atualizado com sucesso!' : '✅ Usuário criado com sucesso!');
         closeModal();
         fetchUsers();
       } else {
-        if (data.error?.includes('email')) {
-          toast.error('❌ Este email já está cadastrado');
-        } else if (data.error?.includes('CPF')) {
-          toast.error('❌ Este CPF já está cadastrado');
-        } else {
-          toast.error(data.error || 'Erro ao salvar usuário');
-        }
+        toast.error(await readApiError(res, 'Não foi possível salvar o usuário'));
       }
     } catch (error) {
-      toast.error('Erro ao salvar usuário');
+      toast.error('Não foi possível salvar o usuário. Verifique sua conexão e tente novamente.');
     }
   };
 

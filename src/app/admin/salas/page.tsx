@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { Plus, Edit2, Trash2, X, MapPin } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { LoadingSpinner } from '@/components/Loading';
+import { readApiError } from '@/lib/api-client';
 
 const EQUIPMENT_OPTIONS = [
   'Computador',
@@ -37,10 +38,10 @@ export default function GerenciarSalasPage() {
         const data = await res.json();
         setRooms(data);
       } else {
-        toast.error('Erro ao carregar salas');
+        toast.error(await readApiError(res, 'Não foi possível carregar as salas'));
       }
     } catch (error) {
-      toast.error('Erro ao carregar salas');
+      toast.error('Não foi possível carregar as salas. Verifique sua conexão e tente novamente.');
     } finally {
       setLoading(false);
     }
@@ -94,11 +95,10 @@ export default function GerenciarSalasPage() {
         toast.success('✅ Sala excluída com sucesso!');
         fetchRooms();
       } else {
-        const data = await res.json();
-        toast.error(data.error || 'Erro ao excluir sala');
+        toast.error(await readApiError(res, 'Não foi possível excluir a sala'));
       }
     } catch (error) {
-      toast.error('Erro ao excluir sala');
+      toast.error('Não foi possível excluir a sala. Verifique sua conexão e tente novamente.');
     }
   };
 
@@ -127,11 +127,10 @@ export default function GerenciarSalasPage() {
         closeModal();
         fetchRooms();
       } else {
-        const data = await res.json();
-        toast.error(data.error || 'Erro ao salvar sala');
+        toast.error(await readApiError(res, 'Não foi possível salvar a sala'));
       }
     } catch (error) {
-      toast.error('Erro ao salvar sala');
+      toast.error('Não foi possível salvar a sala. Verifique sua conexão e tente novamente.');
     }
   };
 

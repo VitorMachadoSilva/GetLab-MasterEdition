@@ -3,10 +3,12 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { getActiveServerSession } from '@/lib/session';
 import { apiError } from '@/lib/api-response';
+import { cleanString, isValidCuid, readJsonObject } from '@/lib/api-validation';
 import { prisma } from '@/lib/prisma';
-import { UserRole } from '@prisma/client';
+import { BookingStatus, UserRole } from '@prisma/client';
 
 const activeBookingStatuses = ['PENDENTE', 'APROVADA'] as const;
+const validBookingStatuses = ['PENDENTE', 'APROVADA', 'REJEITADA', 'CANCELADA'] as const;
 const businessHours = {
   start: 7 * 60,
   end: 22 * 60,
@@ -67,6 +69,32 @@ export async function GET(request: NextRequest) {
       return apiError('Consulta pública inválida', { status: 400 });
     }
 
+    if (status && !validBookingStatuses.includes(status as BookingStatus)) {
+      return apiError('Status inválido', { status: 400 });
+    }
+
+    if (professorId && !isValidCuid(professorId)) {
+      return apiError('Professor inválido', { status: 400 });
+    }
+
+    if (roomId && !isValidCuid(roomId)) {
+      return apiError('Sala inválida', { status: 400 });
+    }
+
+    if (!publicView && session?.user?.role !== 'ADMIN') {
+      const isOwnBookingsQuery = professorId === session?.user?.id;
+      const isAvailabilityQuery = Boolean(date && roomId && !professorId);
+      const isApprovedScheduleQuery = status === 'APROVADA' && !professorId;
+
+      if (professorId && !isOwnBookingsQuery) {
+        return apiError('Sem permissão para consultar reservas de outro usuário', { status: 403 });
+      }
+
+      if (!professorId && !isAvailabilityQuery && !isApprovedScheduleQuery) {
+        return apiError('Consulta de reservas não permitida para este usuário', { status: 403 });
+      }
+    }
+
     const where: any = {};
 
     // Filtrar por data - usa range para pegar qualquer hora do dia
@@ -88,6 +116,10 @@ export async function GET(request: NextRequest) {
       where.status = 'APROVADA';
     } else if (status) {
       where.status = status;
+    } else if (session?.user?.role !== 'ADMIN' && date && roomId && !professorId) {
+      where.status = {
+        in: [...activeBookingStatuses],
+      };
     }
 
     // Filtrar por professor (para ver "Minhas Reservas")
@@ -202,7 +234,13 @@ export async function POST(request: NextRequest) {
       return apiError('Apenas professores podem criar reservas', { status: 403 });
     }
 
-    const body = await request.json();
+    const parsedBody = await readJsonObject(request);
+
+    if (!parsedBody.ok) {
+      return apiError(parsedBody.error, { status: 400 });
+    }
+
+    const body = parsedBody.data;
     const { roomId, course, startTime, endTime, date, students, notes } = body;
 
     // Validações
@@ -210,11 +248,27 @@ export async function POST(request: NextRequest) {
       return apiError('Campos obrigatórios faltando', { status: 400 });
     }
 
-    const courseName = typeof course === 'string' ? course.trim() : '';
-    const bookingNotes = typeof notes === 'string' ? notes.trim() : '';
+    if (!isValidCuid(roomId)) {
+      return apiError('Sala inválida', { status: 400 });
+    }
+
+    const courseName = cleanString(course);
+    const bookingNotes = cleanString(notes);
 
     if (!courseName) {
       return apiError('Disciplina/evento é obrigatório', { status: 400 });
+    }
+
+    if (courseName.length > 120) {
+      return apiError('Disciplina/evento deve ter no máximo 120 caracteres', { status: 400 });
+    }
+
+    if (bookingNotes.length > 500) {
+      return apiError('Observações devem ter no máximo 500 caracteres', { status: 400 });
+    }
+
+    if (typeof date !== 'string' || typeof startTime !== 'string' || typeof endTime !== 'string') {
+      return apiError('Data e horários devem ser informados corretamente', { status: 400 });
     }
 
     const parsedDate = parseDateOnly(date);

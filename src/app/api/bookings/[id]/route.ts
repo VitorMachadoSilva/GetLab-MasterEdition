@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getActiveServerSession } from '@/lib/session';
 import { apiError } from '@/lib/api-response';
+import { cleanString, isValidCuid, readJsonObject } from '@/lib/api-validation';
 import { prisma } from '@/lib/prisma';
 
-const validStatuses = ['PENDENTE', 'APROVADA', 'REJEITADA', 'CANCELADA'] as const;
+const validDecisionStatuses = ['APROVADA', 'REJEITADA'] as const;
 
 function getDateRange(date: Date) {
   return {
@@ -30,7 +31,17 @@ export async function PATCH(
       return apiError('Não autenticado', { status: 401 });
     }
 
-    const body = await request.json();
+    if (!isValidCuid(params.id)) {
+      return apiError('Reserva inválida', { status: 400 });
+    }
+
+    const parsedBody = await readJsonObject(request);
+
+    if (!parsedBody.ok) {
+      return apiError(parsedBody.error, { status: 400 });
+    }
+
+    const body = parsedBody.data;
     const { status, reason } = body;
 
     // Apenas admins podem aprovar/rejeitar
@@ -38,9 +49,11 @@ export async function PATCH(
       return apiError('Apenas administradores podem aprovar/rejeitar reservas', { status: 403 });
     }
 
-    if (!validStatuses.includes(status)) {
+    if (!validDecisionStatuses.includes(status as any)) {
       return apiError('Status inválido', { status: 400 });
     }
+
+    const nextStatus = status as (typeof validDecisionStatuses)[number];
 
     const currentBooking = await prisma.booking.findUnique({
       where: { id: params.id },
@@ -51,7 +64,7 @@ export async function PATCH(
     }
 
     if (
-      (status === 'APROVADA' || status === 'REJEITADA') &&
+      (nextStatus === 'APROVADA' || nextStatus === 'REJEITADA') &&
       currentBooking.status !== 'PENDENTE'
     ) {
       return apiError('Apenas reservas pendentes podem ser aprovadas ou rejeitadas', {
@@ -59,13 +72,17 @@ export async function PATCH(
       });
     }
 
-    const reasonText = typeof reason === 'string' ? reason.trim() : '';
+    const reasonText = cleanString(reason);
 
-    if (status === 'REJEITADA' && !reasonText) {
+    if (nextStatus === 'REJEITADA' && !reasonText) {
       return apiError('Informe o motivo da rejeição', { status: 400 });
     }
 
-    if (status === 'APROVADA') {
+    if (reasonText.length > 500) {
+      return apiError('Motivo deve ter no máximo 500 caracteres', { status: 400 });
+    }
+
+    if (nextStatus === 'APROVADA') {
       const { startDate, endDate } = getDateRange(currentBooking.date);
       const approvedConflict = await prisma.booking.findFirst({
         where: {
@@ -89,8 +106,8 @@ export async function PATCH(
     const booking = await prisma.booking.update({
       where: { id: params.id },
       data: {
-        status,
-        notes: status === 'REJEITADA'
+        status: nextStatus,
+        notes: nextStatus === 'REJEITADA'
           ? appendNote(currentBooking.notes, 'Motivo da rejeicao', reasonText)
           : currentBooking.notes,
       },
@@ -125,6 +142,10 @@ export async function DELETE(
       return apiError('Não autenticado', { status: 401 });
     }
 
+    if (!isValidCuid(params.id)) {
+      return apiError('Reserva inválida', { status: 400 });
+    }
+
     // Buscar a reserva
     const booking = await prisma.booking.findUnique({
       where: { id: params.id },
@@ -149,17 +170,17 @@ export async function DELETE(
         });
       }
 
-      let body: any = {};
-      try {
-        body = await request.json();
-      } catch {
-        body = {};
-      }
+      const parsedBody = await readJsonObject(request);
+      const body = parsedBody.ok ? parsedBody.data : {};
 
-      const reasonText = typeof body.reason === 'string' ? body.reason.trim() : '';
+      const reasonText = cleanString(body.reason);
 
       if (!reasonText) {
         return apiError('Informe o motivo do cancelamento', { status: 400 });
+      }
+
+      if (reasonText.length > 500) {
+        return apiError('Motivo deve ter no máximo 500 caracteres', { status: 400 });
       }
 
       const canceledBooking = await prisma.booking.update({

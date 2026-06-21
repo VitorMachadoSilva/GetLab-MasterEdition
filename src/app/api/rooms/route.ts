@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getActiveServerSession } from '@/lib/session';
 import { apiError } from '@/lib/api-response';
+import { readJsonObject } from '@/lib/api-validation';
 import { prisma } from '@/lib/prisma';
+import { parseRoomPayload } from '@/lib/room-validation';
 
 // GET - Listar salas
 export async function GET(request: NextRequest) {
@@ -31,18 +33,20 @@ export async function POST(request: NextRequest) {
       return apiError('Apenas administradores podem criar salas', { status: 403 });
     }
 
-    const body = await request.json();
-    const { name, type, capacity, building, floor, equipment } = body;
+    const parsedBody = await readJsonObject(request);
+
+    if (!parsedBody.ok) {
+      return apiError(parsedBody.error, { status: 400 });
+    }
+
+    const parsedRoom = parseRoomPayload(parsedBody.data);
+
+    if (!parsedRoom.ok) {
+      return apiError(parsedRoom.error, { status: 400 });
+    }
 
     const room = await prisma.room.create({
-      data: {
-        name,
-        type,
-        capacity: parseInt(capacity),
-        building: building?.trim() || 'Não informado',
-        floor: floor ? parseInt(floor) : null,
-        equipment: equipment || [],
-      },
+      data: parsedRoom.data,
     });
 
     return NextResponse.json(room, { status: 201 });

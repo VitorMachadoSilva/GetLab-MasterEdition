@@ -5,6 +5,7 @@ import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import { Calendar, Clock, MapPin, Users, XCircle, RefreshCw, Filter } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { readApiError } from '@/lib/api-client';
 
 interface Booking {
   id: string;
@@ -49,9 +50,11 @@ export default function MinhasReservasPage() {
       if (res.ok) {
         const data = await res.json();
         setBookings(data);
+      } else {
+        toast.error(await readApiError(res, 'Não foi possível carregar suas reservas'));
       }
     } catch (error) {
-      toast.error('Erro ao carregar reservas');
+      toast.error('Não foi possível carregar suas reservas. Verifique sua conexão e tente novamente.');
     } finally {
       setLoading(false);
     }
@@ -76,11 +79,10 @@ export default function MinhasReservasPage() {
         toast.success('Reserva cancelada com sucesso');
         fetchMyBookings();
       } else {
-        const data = await res.json();
-        toast.error(data.error || 'Erro ao cancelar reserva');
+        toast.error(await readApiError(res, 'Não foi possível cancelar a reserva'));
       }
     } catch (error) {
-      toast.error('Erro ao cancelar reserva');
+      toast.error('Não foi possível cancelar a reserva. Verifique sua conexão e tente novamente.');
     }
   };
 

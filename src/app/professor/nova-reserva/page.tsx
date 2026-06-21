@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import { Plus, AlertCircle, Calendar, Clock, Users, MapPin, FileText } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { LoadingSpinner } from '@/components/Loading';
+import { readApiError } from '@/lib/api-client';
 
 interface Room {
   id: string;
@@ -96,10 +97,10 @@ export default function NovaReservaPage() {
         const data = await res.json();
         setRooms(data);
       } else {
-        toast.error('Erro ao carregar salas');
+        toast.error(await readApiError(res, 'Não foi possível carregar as salas'));
       }
     } catch (error) {
-      toast.error('Erro ao carregar salas');
+      toast.error('Não foi possível carregar as salas. Verifique sua conexão e tente novamente.');
     } finally {
       setLoading(false);
     }
@@ -119,10 +120,10 @@ export default function NovaReservaPage() {
           )
         );
       } else {
-        toast.error('Erro ao carregar disponibilidade');
+        toast.error(await readApiError(res, 'Não foi possível carregar a disponibilidade'));
       }
     } catch (error) {
-      toast.error('Erro ao carregar disponibilidade');
+      toast.error('Não foi possível carregar a disponibilidade. Tente atualizar a agenda.');
     } finally {
       setAvailabilityLoading(false);
     }
@@ -227,20 +228,18 @@ export default function NovaReservaPage() {
         body: JSON.stringify(formData),
       });
 
-      const data = await res.json();
-
       if (res.ok) {
         toast.success('✅ Solicitação de reserva enviada com sucesso!');
         setTimeout(() => {
           router.push('/professor/minhas-reservas');
         }, 1500);
       } else if (res.status === 409) {
-        toast.error('❌ Conflito de horário detectado! Escolha outro horário.');
+        toast.error(await readApiError(res, 'Conflito de horário detectado. Escolha outro horário.'));
       } else {
-        toast.error(data.error || 'Erro ao criar reserva');
+        toast.error(await readApiError(res, 'Não foi possível criar a reserva'));
       }
     } catch (error) {
-      toast.error('Erro ao criar reserva');
+      toast.error('Não foi possível criar a reserva. Verifique sua conexão e tente novamente.');
     } finally {
       setSubmitting(false);
     }
