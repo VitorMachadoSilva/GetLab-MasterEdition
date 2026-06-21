@@ -15,11 +15,25 @@ interface CustomJoyrideProps {
   run: boolean;
   steps: Step[];
   onCallback: (data: any) => void;
+  neverShowAgain?: boolean;
+  onNeverShowAgainChange?: (checked: boolean) => void;
 }
 
-export default function CustomJoyride({ run, steps, onCallback }: CustomJoyrideProps) {
+export default function CustomJoyride({
+  run,
+  steps,
+  onCallback,
+  neverShowAgain = false,
+  onNeverShowAgainChange,
+}: CustomJoyrideProps) {
   const [currentStep, setCurrentStep] = useState(0);
   const [targetPosition, setTargetPosition] = useState({ top: 0, left: 0, width: 0, height: 0 });
+
+  useEffect(() => {
+    if (run) {
+      setCurrentStep(0);
+    }
+  }, [run]);
 
   useEffect(() => {
     if (!run || steps.length === 0) return;
@@ -57,6 +71,8 @@ export default function CustomJoyride({ run, steps, onCallback }: CustomJoyrideP
         window.removeEventListener('resize', updateTargetPosition);
         window.removeEventListener('scroll', updateTargetPosition, true);
       };
+    } else {
+      setTargetPosition({ top: 0, left: 0, width: 0, height: 0 });
     }
   }, [currentStep, run, steps]);
 
@@ -65,11 +81,12 @@ export default function CustomJoyride({ run, steps, onCallback }: CustomJoyrideP
   const step = steps[currentStep];
   const isFirst = currentStep === 0;
   const isLast = currentStep === steps.length - 1;
-  const isCentered = step.placement === 'center' || step.target === 'body';
+  const isMissingTarget = step.target !== 'body' && targetPosition.width === 0;
+  const isCentered = step.placement === 'center' || step.target === 'body' || isMissingTarget;
 
   const handleNext = () => {
     if (isLast) {
-      onCallback({ status: 'finished', type: 'step:after' });
+      onCallback({ status: 'finished', type: 'step:after', neverShowAgain });
     } else {
       setCurrentStep(currentStep + 1);
     }
@@ -82,7 +99,7 @@ export default function CustomJoyride({ run, steps, onCallback }: CustomJoyrideP
   };
 
   const handleSkip = () => {
-    onCallback({ status: 'skipped', type: 'tour:end' });
+    onCallback({ status: 'skipped', type: 'tour:end', neverShowAgain });
   };
 
   const getTooltipPosition = () => {
@@ -184,7 +201,7 @@ export default function CustomJoyride({ run, steps, onCallback }: CustomJoyrideP
         className="fixed z-[9999] pointer-events-auto"
         style={getTooltipPosition()}
       >
-        <div className="glass rounded-2xl shadow-modern border-2 border-white/20 overflow-hidden w-full max-w-md max-h-[calc(100vh-2rem)] overflow-y-auto animate-scale-in">
+        <div className="w-full max-w-md max-h-[calc(100vh-2rem)] overflow-y-auto overflow-hidden rounded-2xl border-2 border-primary-100 bg-white shadow-2xl">
           {/* Header */}
           <div className="bg-gradient-to-r from-primary-500 to-secondary-500 p-5 text-white">
             <div className="flex items-start justify-between">
@@ -213,15 +230,31 @@ export default function CustomJoyride({ run, steps, onCallback }: CustomJoyrideP
           </div>
 
           {/* Footer */}
-          <div className="p-5 bg-gray-50 border-t border-gray-200 flex items-center justify-between">
-            <button
-              onClick={handleSkip}
-              className="text-sm text-gray-500 hover:text-gray-700 font-semibold"
-            >
-              Pular Tutorial
-            </button>
+          <div className="p-5 bg-gray-50 border-t border-gray-200">
+            <label className="mb-4 flex cursor-pointer items-start gap-3 rounded-xl bg-white px-3 py-2 text-sm font-semibold text-gray-600">
+              <input
+                type="checkbox"
+                checked={neverShowAgain}
+                onChange={(event) => onNeverShowAgainChange?.(event.target.checked)}
+                className="mt-1 h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+              />
+              <span>
+                Não mostrar automaticamente nesta página novamente.
+                <span className="block text-xs font-medium text-gray-500">
+                  Você ainda poderá abrir pelo botão de ajuda quando quiser.
+                </span>
+              </span>
+            </label>
 
-            <div className="flex items-center gap-2">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <button
+                onClick={handleSkip}
+                className="text-sm text-gray-500 hover:text-gray-700 font-semibold"
+              >
+                Pular Tutorial
+              </button>
+
+              <div className="flex items-center gap-2">
               {!isFirst && (
                 <button
                   onClick={handlePrev}
@@ -247,6 +280,7 @@ export default function CustomJoyride({ run, steps, onCallback }: CustomJoyrideP
                   </>
                 )}
               </button>
+              </div>
             </div>
           </div>
         </div>

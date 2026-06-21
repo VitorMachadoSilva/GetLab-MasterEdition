@@ -139,7 +139,7 @@ export default function GerenciarSalasPage() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-50 p-6">
       <div className="max-w-7xl mx-auto">
-        <div className="flex justify-between items-center mb-8">
+        <div className="flex justify-between items-center mb-8" data-tour="admin-salas-header">
           <div>
             <h1 className="text-4xl font-bold text-gray-900">Gerenciar Salas</h1>
             <p className="text-gray-600 mt-2">Adicione e gerencie salas e laboratórios</p>
@@ -154,7 +154,7 @@ export default function GerenciarSalasPage() {
         </div>
 
         {/* Stats */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8" data-tour="admin-salas-metricas">
           <div className="bg-white rounded-xl p-6 border-2 border-gray-200">
             <div className="text-3xl font-black text-gray-900">{rooms.length}</div>
             <div className="text-sm text-gray-600 font-medium">Total de Salas</div>
@@ -173,7 +173,7 @@ export default function GerenciarSalasPage() {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6" data-tour="admin-salas-lista">
           {rooms.map((room) => (
             <div key={room.id} className="bg-white rounded-xl p-6 border-2 border-gray-200 hover:border-primary-400 hover:shadow-lg transition-all">
               <div className="flex justify-between items-start mb-4">
@@ -234,7 +234,7 @@ export default function GerenciarSalasPage() {
         </div>
 
         {rooms.length === 0 && (
-          <div className="bg-white rounded-xl p-12 text-center border-2 border-gray-200">
+          <div className="bg-white rounded-xl p-12 text-center border-2 border-gray-200" data-tour="admin-salas-lista">
             <MapPin size={64} className="mx-auto mb-4 text-gray-300" />
             <p className="text-xl text-gray-500 mb-4">Nenhuma sala cadastrada</p>
             <button

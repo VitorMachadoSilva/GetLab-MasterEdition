@@ -189,7 +189,7 @@ export default function PerfilPage() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 p-4 sm:p-6">
       <div className="max-w-6xl mx-auto space-y-6">
-        <section className="glass rounded-3xl border-2 border-white/30 shadow-modern overflow-hidden">
+        <section className="glass rounded-3xl border-2 border-white/30 shadow-modern overflow-hidden" data-tour="perfil-header">
           <div className="bg-gradient-fmpsc p-6 sm:p-8 text-white">
             <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
               <div className="flex flex-col sm:flex-row sm:items-center gap-5">
@@ -235,7 +235,7 @@ export default function PerfilPage() {
         </section>
 
         <div className="grid grid-cols-1 lg:grid-cols-[1.3fr_0.7fr] gap-6">
-          <section className="bg-white rounded-2xl border-2 border-gray-200 shadow-modern p-6 sm:p-8">
+          <section className="bg-white rounded-2xl border-2 border-gray-200 shadow-modern p-6 sm:p-8" data-tour="perfil-dados">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
               <div>
                 <h2 className="text-2xl font-black text-gray-900">Dados da Conta</h2>
@@ -279,7 +279,7 @@ export default function PerfilPage() {
             </div>
 
             {editing && canEdit && (
-              <div className="mt-8 flex flex-col sm:flex-row gap-3">
+              <div className="mt-8 flex flex-col sm:flex-row gap-3" data-tour="perfil-acoes">
                 <button
                   onClick={() => {
                     setEditing(false);
@@ -305,7 +305,7 @@ export default function PerfilPage() {
             )}
 
             {!canEdit && (
-              <div className="mt-8 bg-blue-50 border-2 border-blue-200 rounded-xl p-4">
+              <div className="mt-8 bg-blue-50 border-2 border-blue-200 rounded-xl p-4" data-tour="perfil-acoes">
                 <p className="text-sm text-blue-900 font-medium">
                   Alunos não podem editar informações. Para solicitar alteração, entre em contato com a administração.
                 </p>
@@ -313,7 +313,7 @@ export default function PerfilPage() {
             )}
           </section>
 
-          <aside className="space-y-6">
+          <aside className="space-y-6" data-tour="perfil-resumo">
             <section className="bg-white rounded-2xl border-2 border-gray-200 shadow-modern p-6">
               <h2 className="text-xl font-black text-gray-900 mb-4">Resumo de Reservas</h2>
               <div className="space-y-3">

@@ -343,7 +343,7 @@ export default function NovaReservaPage() {
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-50 p-4 sm:p-6">
       <div className="max-w-5xl mx-auto">
         {/* Header */}
-        <div className="mb-8">
+        <div className="mb-8" data-tour="nova-reserva-header">
           <button
             onClick={() => router.back()}
             className="text-primary-600 hover:text-primary-700 mb-4 flex items-center gap-2 font-semibold transition-colors"
@@ -361,7 +361,7 @@ export default function NovaReservaPage() {
         </div>
 
         {/* Alert */}
-        <div className="bg-blue-50 border-2 border-blue-200 rounded-xl p-5 mb-8 shadow-sm">
+        <div className="bg-blue-50 border-2 border-blue-200 rounded-xl p-5 mb-8 shadow-sm" data-tour="reserva-regras">
           <div className="flex gap-3">
             <AlertCircle className="text-blue-600 flex-shrink-0 mt-0.5" size={22} />
             <div className="text-sm text-blue-900">
@@ -376,10 +376,10 @@ export default function NovaReservaPage() {
         </div>
 
         {/* Form */}
-        <form onSubmit={handleSubmit} className="bg-white rounded-2xl shadow-xl p-5 sm:p-8 border-2 border-gray-100">
+        <form onSubmit={handleSubmit} className="bg-white rounded-2xl shadow-xl p-5 sm:p-8 border-2 border-gray-100" data-tour="reserva-form">
           <div className="space-y-6">
             {/* Sala */}
-            <div>
+            <div data-tour="reserva-sala">
               <label className="flex items-center gap-2 text-sm font-bold text-gray-700 mb-3">
                 <MapPin size={18} className="text-primary-500" />
                 Sala/Laboratório *
@@ -415,7 +415,7 @@ export default function NovaReservaPage() {
             </div>
 
             {/* Disciplina */}
-            <div>
+            <div data-tour="reserva-disciplina">
               <label className="flex items-center gap-2 text-sm font-bold text-gray-700 mb-3">
                 <FileText size={18} className="text-primary-500" />
                 Disciplina/Evento *
@@ -436,7 +436,7 @@ export default function NovaReservaPage() {
             </div>
 
             {/* Data e Alunos */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6" data-tour="reserva-data-alunos">
               <div>
                 <label className="flex items-center gap-2 text-sm font-bold text-gray-700 mb-3">
                   <Calendar size={18} className="text-primary-500" />
@@ -501,7 +501,7 @@ export default function NovaReservaPage() {
 
             {/* Disponibilidade */}
             {selectedRoom && (
-              <div className="rounded-2xl border-2 border-primary-100 bg-primary-50/60 p-5">
+              <div className="rounded-2xl border-2 border-primary-100 bg-primary-50/60 p-5" data-tour="reserva-disponibilidade">
                 <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                   <div>
                     <h2 className="text-lg font-black text-gray-900">
@@ -656,7 +656,7 @@ export default function NovaReservaPage() {
             )}
 
             {/* Horários */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6" data-tour="reserva-horarios">
               <div>
                 <label className="flex items-center gap-2 text-sm font-bold text-gray-700 mb-3">
                   <Clock size={18} className="text-primary-500" />
@@ -754,7 +754,7 @@ export default function NovaReservaPage() {
           </div>
 
           {/* Submit */}
-          <div className="mt-8 flex gap-4">
+          <div className="mt-8 flex gap-4" data-tour="reserva-submit">
             <button
               type="button"
               onClick={() => router.back()}

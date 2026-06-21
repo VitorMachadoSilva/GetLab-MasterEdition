@@ -5,9 +5,17 @@ import { HelpCircle, X, Play } from 'lucide-react';
 
 interface TutorialButtonProps {
   onStart: () => void;
+  autoDisabled?: boolean;
+  onEnableAuto?: () => void;
+  pageLabel?: string;
 }
 
-export default function TutorialButton({ onStart }: TutorialButtonProps) {
+export default function TutorialButton({
+  onStart,
+  autoDisabled = false,
+  onEnableAuto,
+  pageLabel = 'esta página',
+}: TutorialButtonProps) {
   const [showTooltip, setShowTooltip] = useState(false);
 
   return (
@@ -16,10 +24,10 @@ export default function TutorialButton({ onStart }: TutorialButtonProps) {
       <div className="fixed bottom-6 right-6 z-50 group">
         {/* Tooltip */}
         {showTooltip && (
-          <div className="absolute bottom-full right-0 mb-4 animate-fade-in-up">
-            <div className="glass rounded-2xl shadow-modern border-2 border-white/20 p-4 w-64">
+          <div className="absolute bottom-full right-0 mb-4">
+            <div className="w-64 rounded-2xl border-2 border-primary-100 bg-white p-4 shadow-2xl">
               <div className="flex items-start justify-between mb-2">
-                <h4 className="font-bold text-gray-800">🎓 Precisa de ajuda?</h4>
+                <h4 className="font-bold text-gray-800">Precisa de ajuda?</h4>
                 <button
                   onClick={() => setShowTooltip(false)}
                   className="text-gray-400 hover:text-gray-600"
@@ -28,8 +36,13 @@ export default function TutorialButton({ onStart }: TutorialButtonProps) {
                 </button>
               </div>
               <p className="text-sm text-gray-600 mb-3">
-                Faça um tour guiado pela plataforma e aprenda a usar todas as funcionalidades!
+                Faça um tour guiado por {pageLabel} e veja as principais ações desta tela.
               </p>
+              {autoDisabled && (
+                <div className="mb-3 rounded-xl bg-yellow-50 px-3 py-2 text-xs font-semibold text-yellow-800">
+                  O tutorial automático desta página está desativado.
+                </div>
+              )}
               <button
                 onClick={() => {
                   setShowTooltip(false);
@@ -40,6 +53,17 @@ export default function TutorialButton({ onStart }: TutorialButtonProps) {
                 <Play size={16} />
                 Iniciar Tutorial
               </button>
+              {autoDisabled && onEnableAuto && (
+                <button
+                  onClick={() => {
+                    onEnableAuto();
+                    setShowTooltip(false);
+                  }}
+                  className="mt-2 w-full rounded-xl border-2 border-primary-100 bg-white px-4 py-2 text-sm font-bold text-primary-700 transition-colors hover:border-primary-300 hover:bg-primary-50"
+                >
+                  Reativar tutorial automático
+                </button>
+              )}
             </div>
           </div>
         )}
