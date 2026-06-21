@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getActiveServerSession } from '@/lib/session';
+import { apiError } from '@/lib/api-response';
 import { prisma } from '@/lib/prisma';
 
 const validStatuses = ['PENDENTE', 'APROVADA', 'REJEITADA', 'CANCELADA'] as const;
@@ -26,7 +27,7 @@ export async function PATCH(
     const session = await getActiveServerSession();
     
     if (!session?.user) {
-      return NextResponse.json({ error: 'Não autenticado' }, { status: 401 });
+      return apiError('Não autenticado', { status: 401 });
     }
 
     const body = await request.json();
@@ -34,14 +35,11 @@ export async function PATCH(
 
     // Apenas admins podem aprovar/rejeitar
     if (session.user.role !== 'ADMIN') {
-      return NextResponse.json(
-        { error: 'Apenas administradores podem aprovar/rejeitar reservas' },
-        { status: 403 }
-      );
+      return apiError('Apenas administradores podem aprovar/rejeitar reservas', { status: 403 });
     }
 
     if (!validStatuses.includes(status)) {
-      return NextResponse.json({ error: 'Status inválido' }, { status: 400 });
+      return apiError('Status inválido', { status: 400 });
     }
 
     const currentBooking = await prisma.booking.findUnique({
@@ -49,26 +47,22 @@ export async function PATCH(
     });
 
     if (!currentBooking) {
-      return NextResponse.json({ error: 'Reserva não encontrada' }, { status: 404 });
+      return apiError('Reserva não encontrada', { status: 404 });
     }
 
     if (
       (status === 'APROVADA' || status === 'REJEITADA') &&
       currentBooking.status !== 'PENDENTE'
     ) {
-      return NextResponse.json(
-        { error: 'Apenas reservas pendentes podem ser aprovadas ou rejeitadas' },
-        { status: 400 }
-      );
+      return apiError('Apenas reservas pendentes podem ser aprovadas ou rejeitadas', {
+        status: 400,
+      });
     }
 
     const reasonText = typeof reason === 'string' ? reason.trim() : '';
 
     if (status === 'REJEITADA' && !reasonText) {
-      return NextResponse.json(
-        { error: 'Informe o motivo da rejeição' },
-        { status: 400 }
-      );
+      return apiError('Informe o motivo da rejeição', { status: 400 });
     }
 
     if (status === 'APROVADA') {
@@ -88,10 +82,7 @@ export async function PATCH(
       });
 
       if (approvedConflict) {
-        return NextResponse.json(
-          { error: 'Já existe uma reserva aprovada nesse horário' },
-          { status: 409 }
-        );
+        return apiError('Já existe uma reserva aprovada nesse horário', { status: 409 });
       }
     }
 
@@ -118,10 +109,7 @@ export async function PATCH(
     return NextResponse.json(booking);
   } catch (error) {
     console.error('Erro ao atualizar reserva:', error);
-    return NextResponse.json(
-      { error: 'Erro ao atualizar reserva' },
-      { status: 500 }
-    );
+    return apiError('Erro ao atualizar reserva', { status: 500 });
   }
 }
 
@@ -134,7 +122,7 @@ export async function DELETE(
     const session = await getActiveServerSession();
     
     if (!session?.user) {
-      return NextResponse.json({ error: 'Não autenticado' }, { status: 401 });
+      return apiError('Não autenticado', { status: 401 });
     }
 
     // Buscar a reserva
@@ -143,7 +131,7 @@ export async function DELETE(
     });
 
     if (!booking) {
-      return NextResponse.json({ error: 'Reserva não encontrada' }, { status: 404 });
+      return apiError('Reserva não encontrada', { status: 404 });
     }
 
     // Apenas o professor dono ou admin pode excluir/cancelar
@@ -151,18 +139,14 @@ export async function DELETE(
       session.user.role !== 'ADMIN' &&
       booking.professorId !== session.user.id
     ) {
-      return NextResponse.json(
-        { error: 'Sem permissão para excluir esta reserva' },
-        { status: 403 }
-      );
+      return apiError('Sem permissão para excluir esta reserva', { status: 403 });
     }
 
     if (session.user.role !== 'ADMIN') {
       if (booking.status !== 'PENDENTE') {
-        return NextResponse.json(
-          { error: 'Apenas reservas pendentes podem ser canceladas pelo professor' },
-          { status: 400 }
-        );
+        return apiError('Apenas reservas pendentes podem ser canceladas pelo professor', {
+          status: 400,
+        });
       }
 
       let body: any = {};
@@ -175,10 +159,7 @@ export async function DELETE(
       const reasonText = typeof body.reason === 'string' ? body.reason.trim() : '';
 
       if (!reasonText) {
-        return NextResponse.json(
-          { error: 'Informe o motivo do cancelamento' },
-          { status: 400 }
-        );
+        return apiError('Informe o motivo do cancelamento', { status: 400 });
       }
 
       const canceledBooking = await prisma.booking.update({
@@ -199,9 +180,6 @@ export async function DELETE(
     return NextResponse.json({ message: 'Reserva excluída com sucesso' });
   } catch (error) {
     console.error('Erro ao excluir reserva:', error);
-    return NextResponse.json(
-      { error: 'Erro ao excluir reserva' },
-      { status: 500 }
-    );
+    return apiError('Erro ao excluir reserva', { status: 500 });
   }
 }

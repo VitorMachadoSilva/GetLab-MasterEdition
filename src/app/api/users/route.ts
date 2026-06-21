@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getActiveServerSession } from '@/lib/session';
+import { apiError } from '@/lib/api-response';
 import { prisma } from '@/lib/prisma';
 
 // GET - Listar usuários (apenas admin)
@@ -8,10 +9,7 @@ export async function GET(request: NextRequest) {
     const session = await getActiveServerSession();
     
     if (!session?.user || session.user.role !== 'ADMIN') {
-      return NextResponse.json(
-        { error: 'Apenas administradores podem listar usuários' },
-        { status: 403 }
-      );
+      return apiError('Apenas administradores podem listar usuários', { status: 403 });
     }
 
     const { searchParams } = new URL(request.url);
@@ -46,10 +44,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json(users);
   } catch (error) {
     console.error('Erro ao buscar usuários:', error);
-    return NextResponse.json(
-      { error: 'Erro ao buscar usuários' },
-      { status: 500 }
-    );
+    return apiError('Erro ao buscar usuários', { status: 500 });
   }
 }
 
@@ -59,10 +54,7 @@ export async function POST(request: NextRequest) {
     const session = await getActiveServerSession();
     
     if (!session?.user || session.user.role !== 'ADMIN') {
-      return NextResponse.json(
-        { error: 'Apenas administradores podem criar usuários' },
-        { status: 403 }
-      );
+      return apiError('Apenas administradores podem criar usuários', { status: 403 });
     }
 
     const body = await request.json();
@@ -74,10 +66,7 @@ export async function POST(request: NextRequest) {
     const isProfessor = emailLower.endsWith('@fmpsc.edu.br') && !isAluno;
 
     if (!isAluno && !isProfessor && role !== 'ADMIN') {
-      return NextResponse.json(
-        { error: 'Email deve ser institucional' },
-        { status: 400 }
-      );
+      return apiError('Email deve ser institucional', { status: 400 });
     }
 
     // Verificar se já existe
@@ -91,10 +80,7 @@ export async function POST(request: NextRequest) {
     });
 
     if (existing) {
-      return NextResponse.json(
-        { error: 'Usuário já existe (email ou CPF duplicado)' },
-        { status: 409 }
-      );
+      return apiError('Usuário já existe (email ou CPF duplicado)', { status: 409 });
     }
 
     const user = await prisma.user.create({
@@ -119,9 +105,6 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(user, { status: 201 });
   } catch (error) {
     console.error('Erro ao criar usuário:', error);
-    return NextResponse.json(
-      { error: 'Erro ao criar usuário' },
-      { status: 500 }
-    );
+    return apiError('Erro ao criar usuário', { status: 500 });
   }
 }

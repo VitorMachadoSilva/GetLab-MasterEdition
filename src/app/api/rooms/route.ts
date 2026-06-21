@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getActiveServerSession } from '@/lib/session';
+import { apiError } from '@/lib/api-response';
 import { prisma } from '@/lib/prisma';
 
 // GET - Listar salas
@@ -17,10 +18,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json(rooms);
   } catch (error) {
     console.error('Erro ao buscar salas:', error);
-    return NextResponse.json(
-      { error: 'Erro ao buscar salas' },
-      { status: 500 }
-    );
+    return apiError('Erro ao buscar salas', { status: 500 });
   }
 }
 
@@ -30,10 +28,7 @@ export async function POST(request: NextRequest) {
     const session = await getActiveServerSession();
     
     if (!session?.user || session.user.role !== 'ADMIN') {
-      return NextResponse.json(
-        { error: 'Apenas administradores podem criar salas' },
-        { status: 403 }
-      );
+      return apiError('Apenas administradores podem criar salas', { status: 403 });
     }
 
     const body = await request.json();
@@ -53,9 +48,6 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(room, { status: 201 });
   } catch (error) {
     console.error('Erro ao criar sala:', error);
-    return NextResponse.json(
-      { error: 'Erro ao criar sala' },
-      { status: 500 }
-    );
+    return apiError('Erro ao criar sala', { status: 500 });
   }
 }

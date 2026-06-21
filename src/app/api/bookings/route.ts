@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { getActiveServerSession } from '@/lib/session';
+import { apiError } from '@/lib/api-response';
 import { prisma } from '@/lib/prisma';
 import { UserRole } from '@prisma/client';
 
@@ -59,14 +60,11 @@ export async function GET(request: NextRequest) {
     const session = publicView ? await getServerSession(authOptions) : await getActiveServerSession();
 
     if (!session?.user && !publicView) {
-      return NextResponse.json({ error: 'Não autenticado' }, { status: 401 });
+      return apiError('Não autenticado', { status: 401 });
     }
 
     if (publicView && (!date || professorId || status !== 'APROVADA')) {
-      return NextResponse.json(
-        { error: 'Consulta pública inválida' },
-        { status: 400 }
-      );
+      return apiError('Consulta pública inválida', { status: 400 });
     }
 
     const where: any = {};
@@ -76,7 +74,7 @@ export async function GET(request: NextRequest) {
       const parsedDate = parseDateOnly(date);
 
       if (!parsedDate) {
-        return NextResponse.json({ error: 'Data inválida' }, { status: 400 });
+        return apiError('Data inválida', { status: 400 });
       }
       
       where.date = {
@@ -155,10 +153,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json(bookings);
   } catch (error) {
     console.error('Erro ao buscar reservas:', error);
-    return NextResponse.json(
-      { error: 'Erro ao buscar reservas' },
-      { status: 500 }
-    );
+    return apiError('Erro ao buscar reservas', { status: 500 });
   }
 }
 
@@ -168,16 +163,13 @@ export async function POST(request: NextRequest) {
     const session = await getActiveServerSession();
     
     if (!session?.user) {
-      return NextResponse.json({ error: 'Não autenticado' }, { status: 401 });
+      return apiError('Não autenticado', { status: 401 });
     }
 
     const sessionEmail = session.user.email?.toLowerCase();
 
     if (!sessionEmail) {
-      return NextResponse.json(
-        { error: 'Sessão inválida. Faça login novamente.' },
-        { status: 401 }
-      );
+      return apiError('Sessão inválida. Faça login novamente.', { status: 401 });
     }
 
     let currentUser = await prisma.user.findUnique({
@@ -200,18 +192,14 @@ export async function POST(request: NextRequest) {
     }
 
     if (!currentUser) {
-      return NextResponse.json(
-        { error: 'Usuário da sessão não existe mais. Faça logout e entre novamente.' },
-        { status: 401 }
-      );
+      return apiError('Usuário da sessão não existe mais. Faça logout e entre novamente.', {
+        status: 401,
+      });
     }
 
     // Apenas professores e admins podem criar reservas
     if (currentUser.role !== 'PROFESSOR' && currentUser.role !== 'ADMIN') {
-      return NextResponse.json(
-        { error: 'Apenas professores podem criar reservas' },
-        { status: 403 }
-      );
+      return apiError('Apenas professores podem criar reservas', { status: 403 });
     }
 
     const body = await request.json();
@@ -219,54 +207,39 @@ export async function POST(request: NextRequest) {
 
     // Validações
     if (!roomId || !course || !startTime || !endTime || !date || !students) {
-      return NextResponse.json(
-        { error: 'Campos obrigatórios faltando' },
-        { status: 400 }
-      );
+      return apiError('Campos obrigatórios faltando', { status: 400 });
     }
 
     const courseName = typeof course === 'string' ? course.trim() : '';
     const bookingNotes = typeof notes === 'string' ? notes.trim() : '';
 
     if (!courseName) {
-      return NextResponse.json(
-        { error: 'Disciplina/evento é obrigatório' },
-        { status: 400 }
-      );
+      return apiError('Disciplina/evento é obrigatório', { status: 400 });
     }
 
     const parsedDate = parseDateOnly(date);
 
     if (!parsedDate) {
-      return NextResponse.json({ error: 'Data inválida' }, { status: 400 });
+      return apiError('Data inválida', { status: 400 });
     }
 
     const startMinutes = timeToMinutes(startTime);
     const endMinutes = timeToMinutes(endTime);
 
     if (Number.isNaN(startMinutes) || Number.isNaN(endMinutes)) {
-      return NextResponse.json({ error: 'Horário inválido' }, { status: 400 });
+      return apiError('Horário inválido', { status: 400 });
     }
 
     if (endMinutes <= startMinutes) {
-      return NextResponse.json(
-        { error: 'Horário de término deve ser após o início' },
-        { status: 400 }
-      );
+      return apiError('Horário de término deve ser após o início', { status: 400 });
     }
 
     if (endMinutes - startMinutes < 60) {
-      return NextResponse.json(
-        { error: 'A reserva deve ter no mínimo 1 hora de duração' },
-        { status: 400 }
-      );
+      return apiError('A reserva deve ter no mínimo 1 hora de duração', { status: 400 });
     }
 
     if (startMinutes < businessHours.start || endMinutes > businessHours.end) {
-      return NextResponse.json(
-        { error: 'Reservas devem ocorrer entre 07:00 e 22:00' },
-        { status: 400 }
-      );
+      return apiError('Reservas devem ocorrer entre 07:00 e 22:00', { status: 400 });
     }
 
     const bookingDateTime = new Date(parsedDate.dateObj);
@@ -275,26 +248,21 @@ export async function POST(request: NextRequest) {
     const hoursDiff = (bookingDateTime.getTime() - Date.now()) / (1000 * 60 * 60);
 
     if (hoursDiff <= 0) {
-      return NextResponse.json(
-        { error: 'Não é possível criar reserva para data ou horário já passado' },
-        { status: 400 }
-      );
+      return apiError('Não é possível criar reserva para data ou horário já passado', {
+        status: 400,
+      });
     }
 
     if (currentUser.role !== 'ADMIN' && hoursDiff < 24) {
-      return NextResponse.json(
-        { error: 'A reserva deve ser feita com no mínimo 24 horas de antecedência' },
-        { status: 400 }
-      );
+      return apiError('A reserva deve ser feita com no mínimo 24 horas de antecedência', {
+        status: 400,
+      });
     }
 
     const studentsCount = Number(students);
 
     if (!Number.isInteger(studentsCount) || studentsCount < 1) {
-      return NextResponse.json(
-        { error: 'Número de alunos inválido' },
-        { status: 400 }
-      );
+      return apiError('Número de alunos inválido', { status: 400 });
     }
 
     // Verificar se a sala existe
@@ -303,19 +271,16 @@ export async function POST(request: NextRequest) {
     });
 
     if (!room) {
-      return NextResponse.json({ error: 'Sala não encontrada' }, { status: 404 });
+      return apiError('Sala não encontrada', { status: 404 });
     }
 
     if (!room.active) {
-      return NextResponse.json({ error: 'Sala inativa' }, { status: 400 });
+      return apiError('Sala inativa', { status: 400 });
     }
 
     // Verificar capacidade
     if (studentsCount > room.capacity) {
-      return NextResponse.json(
-        { error: `Sala comporta apenas ${room.capacity} alunos` },
-        { status: 400 }
-      );
+      return apiError(`Sala comporta apenas ${room.capacity} alunos`, { status: 400 });
     }
 
     const conflicts = await prisma.booking.findMany({
@@ -334,17 +299,16 @@ export async function POST(request: NextRequest) {
     });
 
     if (conflicts.length > 0) {
-      return NextResponse.json(
-        {
-          error: 'Conflito de horário',
+      return apiError('Conflito de horário', {
+        status: 409,
+        details: {
           conflicts: conflicts.map((c) => ({
             course: c.course,
             startTime: c.startTime,
             endTime: c.endTime,
           })),
         },
-        { status: 409 }
-      );
+      });
     }
 
     // Criar reserva
@@ -375,9 +339,6 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(booking, { status: 201 });
   } catch (error) {
     console.error('Erro ao criar reserva:', error);
-    return NextResponse.json(
-      { error: 'Erro ao criar reserva' },
-      { status: 500 }
-    );
+    return apiError('Erro ao criar reserva', { status: 500 });
   }
 }

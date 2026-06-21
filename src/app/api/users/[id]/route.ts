@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getActiveServerSession } from '@/lib/session';
+import { apiError } from '@/lib/api-response';
 import { prisma } from '@/lib/prisma';
 
 export async function GET(
@@ -10,7 +11,7 @@ export async function GET(
     const session = await getActiveServerSession();
     
     if (!session?.user) {
-      return NextResponse.json({ error: 'Não autenticado' }, { status: 401 });
+      return apiError('Não autenticado', { status: 401 });
     }
 
     const user = await prisma.user.findUnique({
@@ -27,12 +28,13 @@ export async function GET(
     });
 
     if (!user) {
-      return NextResponse.json({ error: 'Usuário não encontrado' }, { status: 404 });
+      return apiError('Usuário não encontrado', { status: 404 });
     }
 
     return NextResponse.json(user);
   } catch (error) {
-    return NextResponse.json({ error: 'Erro ao buscar usuário' }, { status: 500 });
+    console.error('Erro ao buscar usuário:', error);
+    return apiError('Erro ao buscar usuário', { status: 500 });
   }
 }
 
@@ -44,12 +46,12 @@ export async function PATCH(
     const session = await getActiveServerSession();
     
     if (!session?.user) {
-      return NextResponse.json({ error: 'Não autenticado' }, { status: 401 });
+      return apiError('Não autenticado', { status: 401 });
     }
 
     // Apenas admin pode editar outros usuários
     if (session.user.role !== 'ADMIN' && session.user.id !== params.id) {
-      return NextResponse.json({ error: 'Sem permissão' }, { status: 403 });
+      return apiError('Sem permissão', { status: 403 });
     }
 
     const body = await request.json();
@@ -81,7 +83,8 @@ export async function PATCH(
 
     return NextResponse.json(user);
   } catch (error) {
-    return NextResponse.json({ error: 'Erro ao atualizar usuário' }, { status: 500 });
+    console.error('Erro ao atualizar usuário:', error);
+    return apiError('Erro ao atualizar usuário', { status: 500 });
   }
 }
 
@@ -93,12 +96,12 @@ export async function DELETE(
     const session = await getActiveServerSession();
     
     if (!session?.user || session.user.role !== 'ADMIN') {
-      return NextResponse.json({ error: 'Apenas administradores podem excluir usuários' }, { status: 403 });
+      return apiError('Apenas administradores podem excluir usuários', { status: 403 });
     }
 
     // Não pode excluir a si mesmo
     if (session.user.id === params.id) {
-      return NextResponse.json({ error: 'Você não pode excluir seu próprio usuário' }, { status: 400 });
+      return apiError('Você não pode excluir seu próprio usuário', { status: 400 });
     }
 
     await prisma.user.delete({
@@ -107,6 +110,7 @@ export async function DELETE(
 
     return NextResponse.json({ message: 'Usuário excluído com sucesso' });
   } catch (error) {
-    return NextResponse.json({ error: 'Erro ao excluir usuário' }, { status: 500 });
+    console.error('Erro ao excluir usuário:', error);
+    return apiError('Erro ao excluir usuário', { status: 500 });
   }
 }
