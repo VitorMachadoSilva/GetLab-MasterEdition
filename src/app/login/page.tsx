@@ -18,6 +18,12 @@ export default function LoginPage() {
     e.preventDefault();
     if (!ready || loading) return;
 
+    const callbackUrlParam = new URLSearchParams(window.location.search).get('callbackUrl');
+    const callbackUrl =
+      callbackUrlParam && callbackUrlParam.startsWith('/') && !callbackUrlParam.startsWith('//') && callbackUrlParam !== '/'
+        ? callbackUrlParam
+        : '/dashboard';
+
     setLoading(true);
 
     try {
@@ -25,7 +31,7 @@ export default function LoginPage() {
         email: formData.email.trim().toLowerCase(),
         password: formData.password,
         redirect: false,
-        callbackUrl: '/dashboard',
+        callbackUrl,
       });
 
       if (result?.error) {
@@ -35,7 +41,7 @@ export default function LoginPage() {
         toast.success('Login realizado com sucesso!');
         setTimeout(() => {
           toast.dismiss();
-          window.location.assign(result.url || '/dashboard');
+          window.location.assign(callbackUrl);
         }, 1000);
       } else {
         setLoading(false);

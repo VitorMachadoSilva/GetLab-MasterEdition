@@ -6,6 +6,8 @@ export default withAuth(
     const token = req.nextauth.token;
     const path = req.nextUrl.pathname;
 
+    const notFoundUrl = new URL('/not-found', req.url);
+
     // Redirecionar root para dashboard se autenticado
     if (path === '/' && token) {
       return NextResponse.redirect(new URL('/dashboard', req.url));
@@ -18,11 +20,11 @@ export default withAuth(
 
     // Proteção de rotas por role
     if (path.startsWith('/admin') && token?.role !== 'ADMIN') {
-      return NextResponse.redirect(new URL('/dashboard', req.url));
+      return NextResponse.redirect(notFoundUrl);
     }
 
     if (path.startsWith('/professor') && token?.role !== 'PROFESSOR' && token?.role !== 'ADMIN') {
-      return NextResponse.redirect(new URL('/dashboard', req.url));
+      return NextResponse.redirect(notFoundUrl);
     }
 
     return NextResponse.next();
