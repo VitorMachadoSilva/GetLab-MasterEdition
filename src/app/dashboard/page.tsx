@@ -8,6 +8,7 @@ import { LoadingSpinner } from '@/components/Loading';
 import CustomJoyride from '@/components/CustomJoyride';
 import TutorialButton from '@/components/TutorialButton';
 import { useTutorial } from '@/hooks/useTutorial';
+import { readApiError } from '@/lib/api-client';
 
 interface Booking {
   id: string;
@@ -49,9 +50,13 @@ export default function DashboardPage() {
   const fetchTodayBookings = async () => {
     try {
       const res = await fetch(`/api/bookings?date=${selectedDate}&status=APROVADA`);
-      if (res.ok) setBookings(await res.json());
+      if (res.ok) {
+        setBookings(await res.json());
+      } else {
+        toast.error(await readApiError(res, 'Não foi possível carregar as reservas'));
+      }
     } catch (error) {
-      toast.error('Erro ao carregar reservas');
+      toast.error('Não foi possível carregar as reservas. Verifique sua conexão e tente novamente.');
     } finally {
       setLoading(false);
     }

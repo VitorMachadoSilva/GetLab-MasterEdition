@@ -2,6 +2,7 @@ import { NextAuthOptions } from 'next-auth';
 import CredentialsProvider from 'next-auth/providers/credentials';
 import { prisma } from '@/lib/prisma';
 import { UserRole } from '@prisma/client';
+import { randomUUID } from 'crypto';
 
 export const authOptions: NextAuthOptions = {
   providers: [
@@ -100,9 +101,39 @@ export const authOptions: NextAuthOptions = {
   callbacks: {
     async jwt({ token, user }) {
       if (user) {
+        const sessionId = randomUUID();
+        const currentUser = await prisma.user.findUnique({
+          where: { id: user.id },
+          select: { activeSessionId: true },
+        });
+        const hadPreviousSession = Boolean(
+          currentUser?.activeSessionId && currentUser.activeSessionId !== sessionId
+        );
+
+        await prisma.user.update({
+          where: { id: user.id },
+          data: {
+            activeSessionId: sessionId,
+            activeSessionAt: new Date(),
+          },
+        });
+
         token.id = user.id;
         token.role = user.role;
         token.department = user.department ?? undefined;
+        token.sessionId = sessionId;
+        token.sessionError = undefined;
+        token.sessionNotice = hadPreviousSession ? 'PREVIOUS_SESSION_CLOSED' : undefined;
+      } else if (token.id && token.sessionId) {
+        const currentUser = await prisma.user.findUnique({
+          where: { id: token.id },
+          select: { activeSessionId: true },
+        });
+
+        token.sessionError =
+          !currentUser || (currentUser.activeSessionId && currentUser.activeSessionId !== token.sessionId)
+            ? 'SESSION_REPLACED'
+            : undefined;
       }
       return token;
     },
@@ -114,6 +145,9 @@ export const authOptions: NextAuthOptions = {
         session.user.department =
           (token.department as string | undefined) ?? undefined;
       }
+      session.sessionId = token.sessionId;
+      session.sessionError = token.sessionError;
+      session.sessionNotice = token.sessionNotice;
       return session;
     },
   },
@@ -126,6 +160,23 @@ export const authOptions: NextAuthOptions = {
   session: {
     strategy: 'jwt',
     maxAge: 30 * 24 * 60 * 60,
+  },
+
+  events: {
+    async signOut({ token }) {
+      if (!token?.id || !token?.sessionId) return;
+
+      await prisma.user.updateMany({
+        where: {
+          id: token.id,
+          activeSessionId: token.sessionId,
+        },
+        data: {
+          activeSessionId: null,
+          activeSessionAt: null,
+        },
+      });
+    },
   },
 
   secret: process.env.NEXTAUTH_SECRET,

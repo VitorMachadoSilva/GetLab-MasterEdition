@@ -1,0 +1,190 @@
+DOCUMENTACAO FUNCIONAL
+
+Reservas de Ambientes
+Visao consolidada das funcionalidades, regras de negocio, perfis, status, permissoes e
+cadastros do sistema.
+
+Fluxo principal
+
+Regra central
+
+Gestao
+
+Solicitar, aprovar, acompanhar e
+cancelar reservas academicas.
+
+Evitar conflitos de horario e direcionar
+decisoes ao aprovador correto.
+
+Painel, agenda, ambientes, relatorios
+e cadastros administrativos.
+
+Projeto: Reservas de Ambientes
+
+Reservas de Ambientes
+
+Gerado em 20/06/2026
+
+Pagina 1 de 4
+
+1. Visao Geral
+O sistema Reservas de Ambientes organiza o fluxo academico de solicitacao, avaliacao e acompanhamento de reservas de salas,
+laboratorios, auditorios e outros ambientes institucionais.
+A solucao atende principalmente docentes, aprovadores de curso e administradores. O objetivo e reduzir conflitos de horario, centralizar
+decisoes de aprovacao e dar visibilidade ao uso dos ambientes.
+
+2. Perfis de Usuario
+Docente
+
+Aprovador
+
+Cria solicitacoes de reserva, acompanha suas proprias
+reservas e pode cancelar solicitacoes ainda pendentes
+mediante justificativa.
+
+Avalia solicitacoes dos cursos sob sua responsabilidade,
+podendo aprovar ou recusar com motivo registrado.
+
+Administrador
+
+Discente
+
+Acessa a visao institucional, gerencia cadastros, acompanha
+indicadores e pode atuar sobre solicitacoes em escopo
+administrativo.
+
+Perfil previsto no modelo de usuarios, mas sem fluxo
+operacional principal identificado nesta versao.
+
+3. Modulos e Funcionalidades
+Modulo
+
+Funcionalidade principal
+
+Painel
+
+Apresenta reservas do dia, pendencias, ambientes livres/ocupados e atalhos operacionais.
+
+Nova Solicitacao
+
+Fluxo guiado em etapas para selecionar dados academicos, criterios, ambiente, data, horario e finalidade.
+
+Minhas
+
+Permite ao docente acompanhar status, historico, motivo de recusa/cancelamento e cancelar pendentes.
+
+Reservas
+Aprovacoes
+
+Fila de decisao com filtros por status, curso, ambiente, data e busca textual.
+
+Agenda
+
+Consulta operacional das reservas por data e ambiente.
+
+Ambientes
+
+Lista ambientes cadastrados, disponibilidade atual, recursos e proxima reserva do dia.
+
+Relatorios
+
+Indicadores de solicitacoes, taxa de aprovacao, riscos, ambientes mais usados, cursos e docentes com maior
+demanda.
+
+Cadastros
+
+Manutencao de cursos, disciplinas, turmas, ambientes, recursos, usuarios e aprovadores por curso.
+
+Reservas de Ambientes
+
+Pagina 2 de 4
+
+4. Fluxo de Solicitacao de Reserva
+1. O usuario escolhe curso, disciplina e turma.
+2. Informa tipo de ambiente, quantidade estimada de alunos e recursos desejados.
+3. O sistema ranqueia ambientes ativos por aderencia aos criterios, capacidade, recursos e disponibilidade.
+4. O docente seleciona um ambiente, define data, horario inicial e duracao.
+5. O sistema valida finalidade, horario operacional, antecedencia minima e conflitos.
+6. A solicitacao e criada como Pendente e bloqueia provisoriamente o horario.
+7. A solicitacao segue para o aprovador vinculado ao curso. Se nao houver aprovador, entra na fila administrativa geral.
+
+5. Regras de Negocio
+Solicitacoes devem possuir solicitante, curso, disciplina, turma, ambiente, data, inicio, fim, finalidade e quantidade estimada de
+alunos.
+A quantidade estimada de alunos deve ser um numero positivo.
+O horario final deve ser posterior ao horario inicial.
+Reservas so podem ocorrer dentro do expediente configurado: das 07:00 as 22:00.
+Docentes devem solicitar reservas com pelo menos 24 horas de antecedencia. Administradores sao excecao a essa regra.
+Ambientes inativos nao podem ser escolhidos para novas solicitacoes.
+Nao e permitido criar solicitacao para ambiente com conflito de horario em status Pendente ou Aprovada.
+Solicitacoes Pendentes bloqueiam provisoriamente o horario ate aprovacao, recusa, cancelamento ou expiracao.
+Solicitacoes Pendentes expiram se nao forem aprovadas ate 2 horas antes do inicio.
+Aprovadores so podem decidir solicitacoes dos cursos aos quais estao vinculados. Administradores podem decidir em escopo amplo.
+Recusas exigem justificativa obrigatoria.
+Cancelamentos pelo docente exigem justificativa e so sao permitidos enquanto a solicitacao estiver Pendente.
+Ao aprovar, o sistema verifica novamente conflito com outras reservas Aprovadas para o mesmo ambiente e periodo.
+
+6. Status das Solicitacoes
+Status
+
+Significado
+
+Pendente
+
+Solicitacao criada e aguardando decisao; bloqueia provisoriamente o horario.
+
+Aprovada
+
+Reserva confirmada pelo aprovador ou administrador responsavel.
+
+Recusada
+
+Solicitacao negada com motivo registrado.
+
+Cancelada
+
+Solicitacao pendente cancelada pelo solicitante com justificativa.
+
+Expirada
+
+Solicitacao nao aprovada ate 2 horas antes do inicio; o horario e liberado.
+
+7. Cadastros e Dados Mestres
+Cursos possuem codigo unico, disciplinas e turmas vinculadas, status ativo/inativo e relacionamento com aprovadores.
+Ambientes possuem nome unico, tipo, capacidade, localizacao, observacoes, recursos associados e status ativo/inativo.
+Recursos representam itens disponiveis nos ambientes, como projetor, computadores, internet cabeada, ar-condicionado, acessibilidade
+e quadro branco.
+Usuarios possuem nome, e-mail unico, perfil e status ativo/inativo.
+
+Reservas de Ambientes
+
+Pagina 3 de 4
+
+8. Permissoes e Escopo de Aprovacao
+O acesso principal e controlado por usuario selecionado no login, persistido em cookie HTTP-only.
+Na pagina de Aprovacoes, usuarios com perfil Aprovador visualizam solicitacoes relacionadas aos cursos em que estao vinculados como
+aprovadores.
+Administradores possuem visao ampla e podem tratar solicitacoes em contexto institucional.
+Alem da filtragem de tela, as acoes de aprovar e recusar validam novamente no servidor se o usuario tem permissao para decidir a
+solicitacao.
+
+9. Relatorios e Indicadores
+Relatorios estao disponiveis para Administradores e Aprovadores.
+Os indicadores incluem total de solicitacoes no periodo, taxa de aprovacao, pendentes, recusadas/expiradas, distribuicao por status,
+ambientes mais solicitados, cursos com maior demanda e docentes que mais solicitam.
+Os periodos disponiveis sao 30 dias, 90 dias, 180 dias e 12 meses.
+
+10. Observacoes Tecnicas
+A aplicacao utiliza Next.js, React, TypeScript, Prisma e banco SQLite local.
+O modelo de dados central e ReservationRequest, relacionado a usuario solicitante, curso, disciplina, turma, ambiente, aprovador
+atribuido e decisor.
+Apos alteracoes relevantes, o sistema revalida rotas principais para manter telas e indicadores atualizados.
+
+Este documento foi produzido a partir da estrutura atual do projeto e das regras identificadas nos fluxos implementados. Ele pode
+servir como base para apresentacao, entrega academica, validacao com usuarios ou especificacao funcional.
+
+Reservas de Ambientes
+
+Pagina 4 de 4
+
+

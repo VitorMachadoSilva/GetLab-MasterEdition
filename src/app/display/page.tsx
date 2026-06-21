@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { MapPin, Clock, Users, Calendar, Maximize, Minimize } from 'lucide-react';
+import { readApiError } from '@/lib/api-client';
 
 interface Booking {
   id: string;
@@ -19,6 +20,7 @@ export default function DisplayPage() {
   const [currentTime, setCurrentTime] = useState(new Date());
   const [loading, setLoading] = useState(true);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [loadError, setLoadError] = useState('');
 
   useEffect(() => {
     fetchBookings();
@@ -35,14 +37,17 @@ export default function DisplayPage() {
       const d = new Date();
       const today = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
       
-      const res = await fetch(`/api/bookings?date=${today}&status=APROVADA`);
+      const res = await fetch(`/api/bookings?date=${today}&status=APROVADA&public=true`);
       if (res.ok) {
         const data = await res.json();
         // Ordenar por horário
         setBookings(data.sort((a: Booking, b: Booking) => a.startTime.localeCompare(b.startTime)));
+        setLoadError('');
+      } else {
+        setLoadError(await readApiError(res, 'Não foi possível carregar as reservas do display'));
       }
     } catch (error) {
-      console.error('Erro ao carregar reservas');
+      setLoadError('Sem conexão com o servidor. Tentando atualizar novamente...');
     } finally {
       setLoading(false);
     }
@@ -114,6 +119,12 @@ export default function DisplayPage() {
           <h1 className="text-4xl font-black text-white mb-2">
             📅 Reservas de Hoje
           </h1>
+
+          {loadError && (
+            <div className="mx-auto mt-3 max-w-2xl rounded-xl border border-yellow-300/40 bg-yellow-400/15 px-5 py-3 text-sm font-bold text-yellow-100">
+              {loadError}
+            </div>
+          )}
         </div>
 
         {/* Cards das Aulas - FOCO PRINCIPAL */}

@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
+import { getActiveServerSession } from '@/lib/session';
+import { apiError } from '@/lib/api-response';
+import { isValidCuid, readJsonObject } from '@/lib/api-validation';
 import { prisma } from '@/lib/prisma';
+import { parseRoomPayload } from '@/lib/room-validation';
 
 // PATCH - Atualizar sala
 export async function PATCH(
@@ -9,37 +11,37 @@ export async function PATCH(
   { params }: { params: { id: string } }
 ) {
   try {
-    const session = await getServerSession(authOptions);
+    const session = await getActiveServerSession();
     
     if (!session?.user || session.user.role !== 'ADMIN') {
-      return NextResponse.json(
-        { error: 'Apenas administradores podem editar salas' },
-        { status: 403 }
-      );
+      return apiError('Apenas administradores podem editar salas', { status: 403 });
     }
 
-    const body = await request.json();
-    const { name, type, capacity, building, floor, equipment } = body;
+    if (!isValidCuid(params.id)) {
+      return apiError('Sala inválida', { status: 400 });
+    }
+
+    const parsedBody = await readJsonObject(request);
+
+    if (!parsedBody.ok) {
+      return apiError(parsedBody.error, { status: 400 });
+    }
+
+    const parsedRoom = parseRoomPayload(parsedBody.data);
+
+    if (!parsedRoom.ok) {
+      return apiError(parsedRoom.error, { status: 400 });
+    }
 
     const room = await prisma.room.update({
       where: { id: params.id },
-      data: {
-        name,
-        type,
-        capacity: parseInt(capacity),
-        building,
-        floor: floor ? parseInt(floor) : null,
-        equipment: equipment || [],
-      },
+      data: parsedRoom.data,
     });
 
     return NextResponse.json(room);
   } catch (error) {
     console.error('Erro ao atualizar sala:', error);
-    return NextResponse.json(
-      { error: 'Erro ao atualizar sala' },
-      { status: 500 }
-    );
+    return apiError('Erro ao atualizar sala', { status: 500 });
   }
 }
 
@@ -49,13 +51,14 @@ export async function DELETE(
   { params }: { params: { id: string } }
 ) {
   try {
-    const session = await getServerSession(authOptions);
+    const session = await getActiveServerSession();
     
     if (!session?.user || session.user.role !== 'ADMIN') {
-      return NextResponse.json(
-        { error: 'Apenas administradores podem excluir salas' },
-        { status: 403 }
-      );
+      return apiError('Apenas administradores podem excluir salas', { status: 403 });
+    }
+
+    if (!isValidCuid(params.id)) {
+      return apiError('Sala inválida', { status: 400 });
     }
 
     // Verificar se existem reservas para esta sala
@@ -69,8 +72,8 @@ export async function DELETE(
     });
 
     if (bookingsCount > 0) {
-      return NextResponse.json(
-        { error: `Não é possível excluir. Existem ${bookingsCount} reserva(s) ativa(s) para esta sala.` },
+      return apiError(
+        `Não é possível excluir. Existem ${bookingsCount} reserva(s) ativa(s) para esta sala.`,
         { status: 400 }
       );
     }
@@ -82,9 +85,6 @@ export async function DELETE(
     return NextResponse.json({ message: 'Sala excluída com sucesso' });
   } catch (error) {
     console.error('Erro ao excluir sala:', error);
-    return NextResponse.json(
-      { error: 'Erro ao excluir sala' },
-      { status: 500 }
-    );
+    return apiError('Erro ao excluir sala', { status: 500 });
   }
 }

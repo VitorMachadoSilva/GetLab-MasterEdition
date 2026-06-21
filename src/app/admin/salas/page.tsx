@@ -4,6 +4,20 @@ import { useEffect, useState } from 'react';
 import { Plus, Edit2, Trash2, X, MapPin } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { LoadingSpinner } from '@/components/Loading';
+import { readApiError } from '@/lib/api-client';
+
+const EQUIPMENT_OPTIONS = [
+  'Computador',
+  'Projetor',
+  'Quadro branco',
+  'Ar condicionado',
+  'Microfone',
+  'Som',
+  'TV',
+  'Internet',
+  'Lousa digital',
+  'Palco',
+];
 
 export default function GerenciarSalasPage() {
   const [rooms, setRooms] = useState<any[]>([]);
@@ -11,7 +25,7 @@ export default function GerenciarSalasPage() {
   const [showModal, setShowModal] = useState(false);
   const [editingRoom, setEditingRoom] = useState<any>(null);
   const [formData, setFormData] = useState({
-    name: '', type: 'SALA_AULA', capacity: '', building: '', floor: '', equipment: ''
+    name: '', type: 'SALA_AULA', capacity: '', building: '', floor: '', equipment: [] as string[]
   });
 
   useEffect(() => { fetchRooms(); }, []);
@@ -24,10 +38,10 @@ export default function GerenciarSalasPage() {
         const data = await res.json();
         setRooms(data);
       } else {
-        toast.error('Erro ao carregar salas');
+        toast.error(await readApiError(res, 'Não foi possível carregar as salas'));
       }
     } catch (error) {
-      toast.error('Erro ao carregar salas');
+      toast.error('Não foi possível carregar as salas. Verifique sua conexão e tente novamente.');
     } finally {
       setLoading(false);
     }
@@ -35,7 +49,7 @@ export default function GerenciarSalasPage() {
 
   const openCreateModal = () => {
     setEditingRoom(null);
-    setFormData({ name: '', type: 'SALA_AULA', capacity: '', building: '', floor: '', equipment: '' });
+    setFormData({ name: '', type: 'SALA_AULA', capacity: '', building: '', floor: '', equipment: [] });
     setShowModal(true);
   };
 
@@ -45,9 +59,9 @@ export default function GerenciarSalasPage() {
       name: room.name,
       type: room.type,
       capacity: room.capacity.toString(),
-      building: room.building,
+      building: room.building === 'Não informado' ? '' : room.building,
       floor: room.floor?.toString() || '',
-      equipment: room.equipment?.join(', ') || ''
+      equipment: room.equipment || []
     });
     setShowModal(true);
   };
@@ -55,7 +69,16 @@ export default function GerenciarSalasPage() {
   const closeModal = () => {
     setShowModal(false);
     setEditingRoom(null);
-    setFormData({ name: '', type: 'SALA_AULA', capacity: '', building: '', floor: '', equipment: '' });
+    setFormData({ name: '', type: 'SALA_AULA', capacity: '', building: '', floor: '', equipment: [] });
+  };
+
+  const toggleEquipment = (equipment: string) => {
+    setFormData((current) => ({
+      ...current,
+      equipment: current.equipment.includes(equipment)
+        ? current.equipment.filter((item) => item !== equipment)
+        : [...current.equipment, equipment],
+    }));
   };
 
   const handleDelete = async (roomId: string, roomName: string) => {
@@ -72,11 +95,10 @@ export default function GerenciarSalasPage() {
         toast.success('✅ Sala excluída com sucesso!');
         fetchRooms();
       } else {
-        const data = await res.json();
-        toast.error(data.error || 'Erro ao excluir sala');
+        toast.error(await readApiError(res, 'Não foi possível excluir a sala'));
       }
     } catch (error) {
-      toast.error('Erro ao excluir sala');
+      toast.error('Não foi possível excluir a sala. Verifique sua conexão e tente novamente.');
     }
   };
 
@@ -84,12 +106,11 @@ export default function GerenciarSalasPage() {
     e.preventDefault();
     
     try {
-      const equipment = formData.equipment.split(',').map(e => e.trim()).filter(Boolean);
       const payload = {
         ...formData,
         capacity: parseInt(formData.capacity),
+        building: formData.building.trim(),
         floor: formData.floor ? parseInt(formData.floor) : null,
-        equipment
       };
 
       const url = editingRoom ? `/api/rooms/${editingRoom.id}` : '/api/rooms';
@@ -106,11 +127,10 @@ export default function GerenciarSalasPage() {
         closeModal();
         fetchRooms();
       } else {
-        const data = await res.json();
-        toast.error(data.error || 'Erro ao salvar sala');
+        toast.error(await readApiError(res, 'Não foi possível salvar a sala'));
       }
     } catch (error) {
-      toast.error('Erro ao salvar sala');
+      toast.error('Não foi possível salvar a sala. Verifique sua conexão e tente novamente.');
     }
   };
 
@@ -176,7 +196,7 @@ export default function GerenciarSalasPage() {
                 </div>
                 <div className="flex items-center gap-2">
                   <MapPin size={16} className="text-primary-500" />
-                  <strong className="text-gray-900">Local:</strong> {room.building}
+                  <strong className="text-gray-900">Local:</strong> {room.building || 'Não informado'}
                   {room.floor && ` - ${room.floor}º andar`}
                 </div>
                 {room.equipment?.length > 0 && (
@@ -263,7 +283,7 @@ export default function GerenciarSalasPage() {
                   </select>
                 </div>
 
-                <div className="grid grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                   <div>
                     <label className="block text-sm font-bold text-gray-700 mb-2">Capacidade *</label>
                     <input 
@@ -277,13 +297,12 @@ export default function GerenciarSalasPage() {
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-bold text-gray-700 mb-2">Prédio *</label>
+                    <label className="block text-sm font-bold text-gray-700 mb-2">Prédio (opcional)</label>
                     <input 
                       type="text" 
                       placeholder="Bloco A" 
                       value={formData.building} 
                       onChange={(e) => setFormData({...formData, building: e.target.value})} 
-                      required 
                       className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-primary-500 focus:ring-4 focus:ring-primary-100 outline-none" 
                     />
                   </div>
@@ -301,15 +320,29 @@ export default function GerenciarSalasPage() {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-bold text-gray-700 mb-2">Equipamentos (separados por vírgula)</label>
-                  <textarea
-                    placeholder="Ex: Computadores, Projetor, Ar Condicionado"
-                    value={formData.equipment} 
-                    onChange={(e) => setFormData({...formData, equipment: e.target.value})} 
-                    rows={3}
-                    className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-primary-500 focus:ring-4 focus:ring-primary-100 outline-none resize-none" 
-                  />
-                  <p className="text-xs text-gray-500 mt-1">Separe múltiplos equipamentos com vírgula</p>
+                  <label className="block text-sm font-bold text-gray-700 mb-2">Equipamentos</label>
+                  <div className="flex flex-wrap gap-2 rounded-xl border-2 border-gray-200 bg-gray-50 p-3">
+                    {Array.from(new Set([...EQUIPMENT_OPTIONS, ...formData.equipment])).map((equipment) => {
+                      const selected = formData.equipment.includes(equipment);
+
+                      return (
+                        <button
+                          key={equipment}
+                          type="button"
+                          onClick={() => toggleEquipment(equipment)}
+                          className={`px-3 py-2 rounded-full border-2 text-sm font-bold transition-all ${
+                            selected
+                              ? 'border-primary-500 bg-primary-100 text-primary-800 shadow-sm'
+                              : 'border-gray-200 bg-white text-gray-600 hover:border-primary-300 hover:bg-primary-50'
+                          }`}
+                        >
+                          {selected ? '✓ ' : '+ '}
+                          {equipment}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <p className="text-xs text-gray-500 mt-2">Selecione um ou mais equipamentos disponíveis na sala.</p>
                 </div>
 
                 <div className="flex gap-4 pt-4">

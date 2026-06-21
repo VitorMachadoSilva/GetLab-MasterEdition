@@ -31,17 +31,32 @@ export default function CustomJoyride({ run, steps, onCallback }: CustomJoyrideP
     }
 
     const element = document.querySelector(step.target);
-    if (element) {
+    const updateTargetPosition = () => {
+      const element = document.querySelector(step.target);
+      if (!element) return;
+
       const rect = element.getBoundingClientRect();
       setTargetPosition({
-        top: rect.top + window.scrollY,
-        left: rect.left + window.scrollX,
+        top: rect.top,
+        left: rect.left,
         width: rect.width,
         height: rect.height,
       });
+    };
 
-      // Scroll suave até o elemento
-      element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    if (element) {
+      updateTargetPosition();
+      element.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'nearest' });
+
+      const timeout = window.setTimeout(updateTargetPosition, 350);
+      window.addEventListener('resize', updateTargetPosition);
+      window.addEventListener('scroll', updateTargetPosition, true);
+
+      return () => {
+        window.clearTimeout(timeout);
+        window.removeEventListener('resize', updateTargetPosition);
+        window.removeEventListener('scroll', updateTargetPosition, true);
+      };
     }
   }, [currentStep, run, steps]);
 
@@ -71,17 +86,25 @@ export default function CustomJoyride({ run, steps, onCallback }: CustomJoyrideP
   };
 
   const getTooltipPosition = () => {
+    const viewport = window.visualViewport;
+    const viewportWidth = viewport?.width ?? window.innerWidth;
+    const viewportHeight = viewport?.height ?? window.innerHeight;
+    const viewportLeft = viewport?.offsetLeft ?? 0;
+    const viewportTop = viewport?.offsetTop ?? 0;
+
     if (isCentered) {
       return {
-        top: '50%',
-        left: '50%',
+        top: `${viewportTop + viewportHeight / 2}px`,
+        left: `${viewportLeft + viewportWidth / 2}px`,
         transform: 'translate(-50%, -50%)',
+        width: `${Math.min(400, viewportWidth - 32)}px`,
+        maxHeight: `${viewportHeight - 32}px`,
       };
     }
 
     const padding = 20;
-    const tooltipWidth = 400;
-    const tooltipHeight = 200;
+    const tooltipWidth = Math.min(400, viewportWidth - 32);
+    const tooltipHeight = Math.min(260, viewportHeight - 32);
 
     let top = targetPosition.top;
     let left = targetPosition.left;
@@ -109,12 +132,14 @@ export default function CustomJoyride({ run, steps, onCallback }: CustomJoyrideP
     }
 
     // Garantir que está dentro da viewport
-    const maxLeft = window.innerWidth - tooltipWidth - 20;
-    const maxTop = window.innerHeight - tooltipHeight - 20;
-    left = Math.max(20, Math.min(left, maxLeft));
-    top = Math.max(20, Math.min(top, maxTop));
+    const minLeft = viewportLeft + 16;
+    const minTop = viewportTop + 16;
+    const maxLeft = Math.max(minLeft, viewportLeft + viewportWidth - tooltipWidth - 16);
+    const maxTop = Math.max(minTop, viewportTop + viewportHeight - tooltipHeight - 16);
+    left = Math.max(minLeft, Math.min(left, maxLeft));
+    top = Math.max(minTop, Math.min(top, maxTop));
 
-    return { top: `${top}px`, left: `${left}px` };
+    return { top: `${top}px`, left: `${left}px`, width: `${tooltipWidth}px` };
   };
 
   return (
@@ -156,10 +181,10 @@ export default function CustomJoyride({ run, steps, onCallback }: CustomJoyrideP
 
       {/* Tooltip */}
       <div
-        className="fixed z-[9999] animate-scale-in pointer-events-auto"
+        className="fixed z-[9999] pointer-events-auto"
         style={getTooltipPosition()}
       >
-        <div className="glass rounded-2xl shadow-modern border-2 border-white/20 overflow-hidden max-w-md">
+        <div className="glass rounded-2xl shadow-modern border-2 border-white/20 overflow-hidden w-full max-w-md max-h-[calc(100vh-2rem)] overflow-y-auto animate-scale-in">
           {/* Header */}
           <div className="bg-gradient-to-r from-primary-500 to-secondary-500 p-5 text-white">
             <div className="flex items-start justify-between">

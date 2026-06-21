@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
+import { getActiveServerSession } from '@/lib/session';
+import { apiError } from '@/lib/api-response';
+import { readJsonObject } from '@/lib/api-validation';
 import { prisma } from '@/lib/prisma';
+import { parseRoomPayload } from '@/lib/room-validation';
 
 // GET - Listar salas
 export async function GET(request: NextRequest) {
@@ -18,45 +20,38 @@ export async function GET(request: NextRequest) {
     return NextResponse.json(rooms);
   } catch (error) {
     console.error('Erro ao buscar salas:', error);
-    return NextResponse.json(
-      { error: 'Erro ao buscar salas' },
-      { status: 500 }
-    );
+    return apiError('Erro ao buscar salas', { status: 500 });
   }
 }
 
 // POST - Criar nova sala (apenas admin)
 export async function POST(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
+    const session = await getActiveServerSession();
     
     if (!session?.user || session.user.role !== 'ADMIN') {
-      return NextResponse.json(
-        { error: 'Apenas administradores podem criar salas' },
-        { status: 403 }
-      );
+      return apiError('Apenas administradores podem criar salas', { status: 403 });
     }
 
-    const body = await request.json();
-    const { name, type, capacity, building, floor, equipment } = body;
+    const parsedBody = await readJsonObject(request);
+
+    if (!parsedBody.ok) {
+      return apiError(parsedBody.error, { status: 400 });
+    }
+
+    const parsedRoom = parseRoomPayload(parsedBody.data);
+
+    if (!parsedRoom.ok) {
+      return apiError(parsedRoom.error, { status: 400 });
+    }
 
     const room = await prisma.room.create({
-      data: {
-        name,
-        type,
-        capacity: parseInt(capacity),
-        building,
-        floor: floor ? parseInt(floor) : null,
-        equipment: equipment || [],
-      },
+      data: parsedRoom.data,
     });
 
     return NextResponse.json(room, { status: 201 });
   } catch (error) {
     console.error('Erro ao criar sala:', error);
-    return NextResponse.json(
-      { error: 'Erro ao criar sala' },
-      { status: 500 }
-    );
+    return apiError('Erro ao criar sala', { status: 500 });
   }
 }

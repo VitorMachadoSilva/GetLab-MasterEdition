@@ -3,8 +3,9 @@
 import { useEffect, useState } from 'react';
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
-import { Calendar, Clock, MapPin, Users, Trash2, RefreshCw, Filter } from 'lucide-react';
+import { Calendar, Clock, MapPin, Users, XCircle, RefreshCw, Filter } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { readApiError } from '@/lib/api-client';
 
 interface Booking {
   id: string;
@@ -35,7 +36,7 @@ export default function MinhasReservasPage() {
   const router = useRouter();
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState<'TODAS' | 'PENDENTE' | 'APROVADA' | 'REJEITADA'>('TODAS');
+  const [filter, setFilter] = useState<'TODAS' | 'PENDENTE' | 'APROVADA' | 'REJEITADA' | 'CANCELADA'>('TODAS');
 
   useEffect(() => {
     if (session?.user?.id) {
@@ -49,32 +50,39 @@ export default function MinhasReservasPage() {
       if (res.ok) {
         const data = await res.json();
         setBookings(data);
+      } else {
+        toast.error(await readApiError(res, 'Não foi possível carregar suas reservas'));
       }
     } catch (error) {
-      toast.error('Erro ao carregar reservas');
+      toast.error('Não foi possível carregar suas reservas. Verifique sua conexão e tente novamente.');
     } finally {
       setLoading(false);
     }
   };
 
-  const handleDelete = async (bookingId: string) => {
-    if (!confirm('Tem certeza que deseja excluir esta reserva?')) {
+  const handleCancel = async (bookingId: string) => {
+    const reason = prompt('Informe o motivo do cancelamento:')?.trim();
+
+    if (!reason) {
+      toast.error('Informe um motivo para cancelar a reserva');
       return;
     }
 
     try {
       const res = await fetch(`/api/bookings/${bookingId}`, {
         method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reason }),
       });
 
       if (res.ok) {
-        toast.success('Reserva excluída com sucesso');
+        toast.success('Reserva cancelada com sucesso');
         fetchMyBookings();
       } else {
-        toast.error('Erro ao excluir reserva');
+        toast.error(await readApiError(res, 'Não foi possível cancelar a reserva'));
       }
     } catch (error) {
-      toast.error('Erro ao excluir reserva');
+      toast.error('Não foi possível cancelar a reserva. Verifique sua conexão e tente novamente.');
     }
   };
 
@@ -86,6 +94,8 @@ export default function MinhasReservasPage() {
         return 'bg-green-100 text-green-800 border-green-300';
       case 'REJEITADA':
         return 'bg-red-100 text-red-800 border-red-300';
+      case 'CANCELADA':
+        return 'bg-gray-100 text-gray-800 border-gray-300';
       default:
         return 'bg-gray-100 text-gray-800 border-gray-300';
     }
@@ -99,6 +109,8 @@ export default function MinhasReservasPage() {
         return '✅ Aprovada';
       case 'REJEITADA':
         return '❌ Rejeitada';
+      case 'CANCELADA':
+        return 'Cancelada';
       default:
         return status;
     }
@@ -113,6 +125,7 @@ export default function MinhasReservasPage() {
     pendentes: bookings.filter(b => b.status === 'PENDENTE').length,
     aprovadas: bookings.filter(b => b.status === 'APROVADA').length,
     rejeitadas: bookings.filter(b => b.status === 'REJEITADA').length,
+    canceladas: bookings.filter(b => b.status === 'CANCELADA').length,
   };
 
   if (loading) {
@@ -153,7 +166,7 @@ export default function MinhasReservasPage() {
         </div>
 
         {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
+        <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-8">
           <div className="bg-white rounded-xl p-6 border-2 border-gray-200">
             <div className="text-3xl font-black text-gray-900">{stats.total}</div>
             <div className="text-sm text-gray-600 font-medium">Total</div>
@@ -170,10 +183,14 @@ export default function MinhasReservasPage() {
             <div className="text-3xl font-black text-red-800">{stats.rejeitadas}</div>
             <div className="text-sm text-red-700 font-medium">Rejeitadas</div>
           </div>
+          <div className="bg-gray-50 rounded-xl p-6 border-2 border-gray-200">
+            <div className="text-3xl font-black text-gray-800">{stats.canceladas}</div>
+            <div className="text-sm text-gray-700 font-medium">Canceladas</div>
+          </div>
         </div>
 
         {/* Filters */}
-        <div className="mb-6 flex items-center gap-3">
+        <div className="mb-6 flex flex-wrap items-center gap-3">
           <Filter size={20} className="text-gray-600" />
           <button
             onClick={() => setFilter('TODAS')}
@@ -214,6 +231,16 @@ export default function MinhasReservasPage() {
             }`}
           >
             Rejeitadas
+          </button>
+          <button
+            onClick={() => setFilter('CANCELADA')}
+            className={`px-4 py-2 rounded-lg font-semibold transition-colors ${
+              filter === 'CANCELADA'
+                ? 'bg-gray-600 text-white'
+                : 'bg-white border-2 border-gray-200 text-gray-700 hover:border-gray-300'
+            }`}
+          >
+            Canceladas
           </button>
         </div>
 
@@ -268,15 +295,17 @@ export default function MinhasReservasPage() {
                     )}
                   </div>
 
-                  <div className="flex lg:flex-col gap-2">
-                    <button
-                      onClick={() => handleDelete(booking.id)}
-                      className="px-4 py-2 bg-red-500 hover:bg-red-600 text-white font-semibold rounded-lg transition-colors flex items-center justify-center gap-2"
-                    >
-                      <Trash2 size={16} />
-                      Excluir
-                    </button>
-                  </div>
+                  {booking.status === 'PENDENTE' && (
+                    <div className="flex lg:flex-col gap-2">
+                      <button
+                        onClick={() => handleCancel(booking.id)}
+                        className="px-4 py-2 bg-red-500 hover:bg-red-600 text-white font-semibold rounded-lg transition-colors flex items-center justify-center gap-2"
+                      >
+                        <XCircle size={16} />
+                        Cancelar
+                      </button>
+                    </div>
+                  )}
                 </div>
               </div>
             ))}
