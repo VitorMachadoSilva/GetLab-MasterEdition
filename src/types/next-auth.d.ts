@@ -14,6 +14,9 @@ declare module "next-auth" {
       role: UserRole;
       department?: string;
     } & DefaultSession["user"];
+    sessionId?: string;
+    sessionError?: "SESSION_REPLACED";
+    sessionNotice?: "PREVIOUS_SESSION_CLOSED";
   }
 }
 
@@ -22,5 +25,8 @@ declare module "next-auth/jwt" {
     id: string;
     role: UserRole;
     department?: string;
+    sessionId?: string;
+    sessionError?: "SESSION_REPLACED";
+    sessionNotice?: "PREVIOUS_SESSION_CLOSED";
   }
 }

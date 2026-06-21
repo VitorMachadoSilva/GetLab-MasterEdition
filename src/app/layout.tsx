@@ -3,6 +3,7 @@ import { Inter } from 'next/font/google';
 import './globals.css';
 import { SessionProviderWrapper } from '@/components/SessionProvider';
 import { ToastManager } from '@/components/ToastManager';
+import AuthSessionGuard from '@/components/AuthSessionGuard';
 import Navbar from '@/components/Navbar';
 import { Toaster } from 'react-hot-toast';
 
@@ -28,6 +29,7 @@ export default function RootLayout({
       <body className={inter.className}>
         <SessionProviderWrapper>
           <ToastManager />
+          <AuthSessionGuard />
           <Navbar />
           <Toaster 
             position="top-right"

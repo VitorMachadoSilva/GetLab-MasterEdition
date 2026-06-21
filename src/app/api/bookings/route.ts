@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
+import { getActiveServerSession } from '@/lib/session';
 import { prisma } from '@/lib/prisma';
 import { UserRole } from '@prisma/client';
 
@@ -55,7 +56,7 @@ export async function GET(request: NextRequest) {
     const professorId = searchParams.get('professorId');
     const roomId = searchParams.get('roomId');
     const publicView = searchParams.get('public') === 'true';
-    const session = await getServerSession(authOptions);
+    const session = publicView ? await getServerSession(authOptions) : await getActiveServerSession();
 
     if (!session?.user && !publicView) {
       return NextResponse.json({ error: 'Não autenticado' }, { status: 401 });
@@ -164,7 +165,7 @@ export async function GET(request: NextRequest) {
 // POST - Criar nova reserva
 export async function POST(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
+    const session = await getActiveServerSession();
     
     if (!session?.user) {
       return NextResponse.json({ error: 'Não autenticado' }, { status: 401 });
