@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
-import { Plus, AlertCircle, Calendar, Clock, Users, MapPin, FileText } from 'lucide-react';
+import { Plus, AlertCircle, Calendar, Clock, Users, MapPin, FileText, ChevronDown, Check } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { LoadingSpinner } from '@/components/Loading';
 import { readApiError } from '@/lib/api-client';
@@ -120,6 +120,7 @@ export default function NovaReservaPage() {
   const [loading, setLoading] = useState(true);
   const [availabilityLoading, setAvailabilityLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [roomSelectorOpen, setRoomSelectorOpen] = useState(false);
   const [errors, setErrors] = useState<{[key: string]: string}>({});
   const [formData, setFormData] = useState({
     roomId: '',
@@ -199,6 +200,11 @@ export default function NovaReservaPage() {
 
   const validateForm = (): boolean => {
     const newErrors: {[key: string]: string} = {};
+
+    if (!formData.roomId) {
+      newErrors.roomId = 'Selecione uma sala ou laboratório';
+      toast.error('Selecione uma sala ou laboratório');
+    }
 
     // Validação de data/hora: mínimo 24h de antecedência
     if (formData.startTime) {
@@ -333,6 +339,17 @@ export default function NovaReservaPage() {
     setErrors({ ...errors, date: '', startTime: '', endTime: '' });
   };
 
+  const handleRoomChange = (roomId: string) => {
+    setFormData({
+      ...formData,
+      roomId,
+      startTime: '',
+      endTime: '',
+    });
+    setErrors({ ...errors, roomId: '', startTime: '', endTime: '' });
+    setRoomSelectorOpen(false);
+  };
+
   const handleSlotClick = (slot: { startTime: string; endTime: string; busyBookings: Booking[] }) => {
     if (slot.busyBookings.length > 0) {
       toast.error('Este bloco já está ocupado. Escolha um horário livre.');
@@ -401,33 +418,122 @@ export default function NovaReservaPage() {
                 <MapPin size={18} className="text-primary-500" />
                 Sala/Laboratório *
               </label>
-              <select
-                value={formData.roomId}
-                onChange={(e) => {
-                  setFormData({
-                    ...formData,
-                    roomId: e.target.value,
-                    startTime: '',
-                    endTime: '',
-                  });
-                  setErrors({ ...errors, roomId: '', startTime: '', endTime: '' });
+              <div
+                className="relative"
+                onBlur={(e) => {
+                  if (!e.currentTarget.contains(e.relatedTarget as Node | null)) {
+                    setRoomSelectorOpen(false);
+                  }
                 }}
-                required
-                className={`w-full px-4 py-3.5 border-2 rounded-xl focus:ring-4 focus:ring-primary-100 outline-none transition-all font-medium ${
-                  errors.roomId ? 'border-red-500 bg-red-50' : 'border-gray-200 focus:border-primary-500'
-                }`}
               >
-                <option value="">Selecione uma sala...</option>
-                {rooms.map((room) => (
-                  <option key={room.id} value={room.id}>
-                    {room.name} - {room.building} (Capacidade: {room.capacity} pessoas)
-                  </option>
-                ))}
-              </select>
+                <button
+                  type="button"
+                  onClick={() => setRoomSelectorOpen((open) => !open)}
+                  aria-haspopup="listbox"
+                  aria-expanded={roomSelectorOpen}
+                  className={`w-full rounded-2xl border-2 bg-white px-4 py-4 text-left shadow-sm outline-none transition-all hover:border-primary-300 focus:border-primary-500 focus:ring-4 focus:ring-primary-100 ${
+                    errors.roomId ? 'border-red-500 bg-red-50' : 'border-gray-200'
+                  }`}
+                >
+                  <div className="flex items-center gap-3">
+                    <div className={`flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-xl ${
+                      selectedRoom ? 'bg-primary-100 text-primary-700' : 'bg-gray-100 text-gray-500'
+                    }`}>
+                      <MapPin size={20} />
+                    </div>
+
+                    <div className="min-w-0 flex-1">
+                      {selectedRoom ? (
+                        <>
+                          <p className="truncate text-base font-black text-gray-900">{selectedRoom.name}</p>
+                          <p className="truncate text-sm font-semibold text-gray-600">
+                            {getRoomTypeLabel(selectedRoom.type)} • {selectedRoom.building}
+                          </p>
+                        </>
+                      ) : (
+                        <>
+                          <p className="text-base font-black text-gray-700">Selecione uma sala...</p>
+                          <p className="text-sm font-semibold text-gray-500">
+                            Veja capacidade, tipo e localização antes de reservar
+                          </p>
+                        </>
+                      )}
+                    </div>
+
+                    {selectedRoom && (
+                      <span className="hidden rounded-full bg-primary-50 px-3 py-1 text-xs font-black text-primary-700 sm:inline-flex">
+                        {selectedRoom.capacity} pessoas
+                      </span>
+                    )}
+
+                    <ChevronDown
+                      size={22}
+                      className={`flex-shrink-0 text-gray-500 transition-transform ${roomSelectorOpen ? 'rotate-180' : ''}`}
+                    />
+                  </div>
+                </button>
+
+                {roomSelectorOpen && (
+                  <div
+                    role="listbox"
+                    className="absolute left-0 right-0 z-30 mt-2 max-h-96 overflow-y-auto rounded-2xl border-2 border-primary-100 bg-white p-2 shadow-2xl"
+                  >
+                    {rooms.length > 0 ? (
+                      <div className="grid gap-2">
+                        {rooms.map((room) => {
+                          const selected = formData.roomId === room.id;
+
+                          return (
+                            <button
+                              key={room.id}
+                              type="button"
+                              role="option"
+                              aria-selected={selected}
+                              onClick={() => handleRoomChange(room.id)}
+                              className={`group flex w-full items-start gap-3 rounded-xl border-2 p-3 text-left transition-all ${
+                                selected
+                                  ? 'border-primary-500 bg-primary-50 text-primary-900 shadow-sm'
+                                  : 'border-gray-100 bg-white text-gray-700 hover:border-primary-200 hover:bg-primary-50'
+                              }`}
+                            >
+                              <div className={`mt-0.5 flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl ${
+                                selected
+                                  ? 'bg-primary-600 text-white'
+                                  : 'bg-gray-100 text-gray-500 group-hover:bg-primary-100 group-hover:text-primary-700'
+                              }`}>
+                                {selected ? <Check size={18} /> : <MapPin size={18} />}
+                              </div>
+
+                              <div className="min-w-0 flex-1">
+                                <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+                                  <p className="truncate text-sm font-black text-gray-900">{room.name}</p>
+                                  <span className="w-fit rounded-full bg-gray-100 px-2.5 py-1 text-xs font-black text-gray-700">
+                                    {room.capacity} pessoas
+                                  </span>
+                                </div>
+                                <p className="mt-1 text-sm font-semibold text-gray-600">
+                                  {getRoomTypeLabel(room.type)} • {room.building}
+                                </p>
+                              </div>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      <div className="rounded-xl bg-gray-50 p-4 text-sm font-semibold text-gray-600">
+                        Nenhuma sala cadastrada no momento.
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
               {selectedRoom && (
                 <p className="mt-2 text-sm text-gray-600 bg-gray-50 p-3 rounded-lg">
                   📍 <strong>{getRoomTypeLabel(selectedRoom.type)}</strong> • Capacidade: {selectedRoom.capacity} pessoas
                 </p>
+              )}
+              {errors.roomId && (
+                <p className="mt-2 text-sm text-red-600 font-semibold">⚠️ {errors.roomId}</p>
               )}
             </div>
 
