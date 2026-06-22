@@ -4,6 +4,7 @@ import { apiError } from '@/lib/api-response';
 import { readJsonObject } from '@/lib/api-validation';
 import { prisma } from '@/lib/prisma';
 import { parseRoomPayload } from '@/lib/room-validation';
+import { demoWriteBlocked, isDemoRole } from '@/lib/demo-access';
 
 // GET - Listar salas
 export async function GET(request: NextRequest) {
@@ -28,7 +29,11 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const session = await getActiveServerSession();
-    
+
+    if (isDemoRole(session?.user?.role)) {
+      return demoWriteBlocked();
+    }
+
     if (!session?.user || session.user.role !== 'ADMIN') {
       return apiError('Apenas administradores podem criar salas', { status: 403 });
     }

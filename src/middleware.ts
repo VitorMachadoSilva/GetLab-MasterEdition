@@ -19,11 +19,15 @@ export default withAuth(
     }
 
     // Proteção de rotas por role
-    if (path.startsWith('/admin') && token?.role !== 'ADMIN') {
+    const canAccessAdmin = token?.role === 'ADMIN' || token?.role === 'DEMO';
+    const canAccessProfessor =
+      token?.role === 'PROFESSOR' || token?.role === 'ADMIN' || token?.role === 'DEMO';
+
+    if (path.startsWith('/admin') && !canAccessAdmin) {
       return NextResponse.redirect(notFoundUrl);
     }
 
-    if (path.startsWith('/professor') && token?.role !== 'PROFESSOR' && token?.role !== 'ADMIN') {
+    if (path.startsWith('/professor') && !canAccessProfessor) {
       return NextResponse.redirect(notFoundUrl);
     }
 

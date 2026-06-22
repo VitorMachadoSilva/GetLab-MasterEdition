@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { useSession } from 'next-auth/react';
 import { Plus, Edit2, Trash2, X, MapPin } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { LoadingSpinner } from '@/components/Loading';
@@ -20,6 +21,7 @@ const EQUIPMENT_OPTIONS = [
 ];
 
 export default function GerenciarSalasPage() {
+  const { data: session } = useSession();
   const [rooms, setRooms] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
@@ -27,6 +29,7 @@ export default function GerenciarSalasPage() {
   const [formData, setFormData] = useState({
     name: '', type: 'SALA_AULA', capacity: '', building: '', floor: '', equipment: [] as string[]
   });
+  const isDemo = session?.user?.role === 'DEMO';
 
   useEffect(() => { fetchRooms(); }, []);
 
@@ -48,12 +51,22 @@ export default function GerenciarSalasPage() {
   };
 
   const openCreateModal = () => {
+    if (isDemo) {
+      toast.error('Perfil DEMO possui acesso somente para visualização.');
+      return;
+    }
+
     setEditingRoom(null);
     setFormData({ name: '', type: 'SALA_AULA', capacity: '', building: '', floor: '', equipment: [] });
     setShowModal(true);
   };
 
   const openEditModal = (room: any) => {
+    if (isDemo) {
+      toast.error('Perfil DEMO possui acesso somente para visualização.');
+      return;
+    }
+
     setEditingRoom(room);
     setFormData({
       name: room.name,
@@ -82,6 +95,11 @@ export default function GerenciarSalasPage() {
   };
 
   const handleDelete = async (roomId: string, roomName: string) => {
+    if (isDemo) {
+      toast.error('Perfil DEMO possui acesso somente para visualização.');
+      return;
+    }
+
     if (!confirm(`Tem certeza que deseja excluir a sala "${roomName}"?\n\nEsta ação não pode ser desfeita!`)) {
       return;
     }
@@ -143,10 +161,16 @@ export default function GerenciarSalasPage() {
           <div>
             <h1 className="text-4xl font-bold text-gray-900">Gerenciar Salas</h1>
             <p className="text-gray-600 mt-2">Adicione e gerencie salas e laboratórios</p>
+            {isDemo && (
+              <div className="mt-4 rounded-2xl border-2 border-purple-200 bg-purple-50 px-4 py-3 text-sm font-bold text-purple-800">
+                Modo DEMO: salas visíveis, criação e edição bloqueadas.
+              </div>
+            )}
           </div>
           <button
             onClick={openCreateModal}
-            className="px-6 py-3 bg-gradient-to-r from-primary-500 to-secondary-500 text-white font-bold rounded-lg hover:shadow-lg transition-all flex items-center gap-2"
+            disabled={isDemo}
+            className="px-6 py-3 bg-gradient-to-r from-primary-500 to-secondary-500 text-white font-bold rounded-lg hover:shadow-lg transition-all flex items-center gap-2 disabled:cursor-not-allowed disabled:opacity-60"
           >
             <Plus size={20} />
             Nova Sala
@@ -216,14 +240,16 @@ export default function GerenciarSalasPage() {
               <div className="flex gap-2 pt-4 border-t border-gray-200">
                 <button
                   onClick={() => openEditModal(room)}
-                  className="flex-1 px-4 py-2 bg-primary-50 text-primary-700 font-semibold rounded-lg hover:bg-primary-100 transition-colors flex items-center justify-center gap-2"
+                  disabled={isDemo}
+                  className="flex-1 px-4 py-2 bg-primary-50 text-primary-700 font-semibold rounded-lg hover:bg-primary-100 transition-colors flex items-center justify-center gap-2 disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   <Edit2 size={16} />
                   Editar
                 </button>
                 <button
                   onClick={() => handleDelete(room.id, room.name)}
-                  className="flex-1 px-4 py-2 bg-red-50 text-red-700 font-semibold rounded-lg hover:bg-red-100 transition-colors flex items-center justify-center gap-2"
+                  disabled={isDemo}
+                  className="flex-1 px-4 py-2 bg-red-50 text-red-700 font-semibold rounded-lg hover:bg-red-100 transition-colors flex items-center justify-center gap-2 disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   <Trash2 size={16} />
                   Excluir
@@ -239,7 +265,8 @@ export default function GerenciarSalasPage() {
             <p className="text-xl text-gray-500 mb-4">Nenhuma sala cadastrada</p>
             <button
               onClick={openCreateModal}
-              className="px-6 py-3 bg-gradient-to-r from-primary-500 to-secondary-500 text-white font-bold rounded-lg hover:shadow-lg transition-all"
+              disabled={isDemo}
+              className="px-6 py-3 bg-gradient-to-r from-primary-500 to-secondary-500 text-white font-bold rounded-lg hover:shadow-lg transition-all disabled:cursor-not-allowed disabled:opacity-60"
             >
               Cadastrar Primeira Sala
             </button>

@@ -29,6 +29,8 @@ export const authOptions: NextAuthOptions = {
 
         const email = credentials.email.toLowerCase();
         const cpf = credentials.password;
+        const demoEmail = process.env.DEMO_EMAIL?.toLowerCase();
+        const demoPassword = process.env.DEMO_PASSWORD;
 
         // ================= ADMIN =================
         if (
@@ -56,6 +58,33 @@ export const authOptions: NextAuthOptions = {
             name: admin.name,
             role: admin.role,
             department: undefined, // 🔥 sempre definir
+          };
+        }
+
+        // ================= DEMO =================
+        if (demoEmail && demoPassword && email === demoEmail && cpf === demoPassword) {
+          let demoUser = await prisma.user.findUnique({
+            where: { email },
+          });
+
+          if (!demoUser) {
+            demoUser = await prisma.user.create({
+              data: {
+                email,
+                cpf: 'DEMO',
+                name: 'Usuário Demo',
+                role: UserRole.DEMO,
+                department: 'Demonstração',
+              },
+            });
+          }
+
+          return {
+            id: demoUser.id,
+            email: demoUser.email,
+            name: demoUser.name,
+            role: demoUser.role,
+            department: demoUser.department ?? undefined,
           };
         }
 

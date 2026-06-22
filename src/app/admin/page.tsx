@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
+import { useSession } from 'next-auth/react';
 import {
   AlertCircle,
   Calendar,
@@ -44,7 +45,7 @@ type User = {
   name: string;
   email: string;
   cpf: string;
-  role: 'ADMIN' | 'PROFESSOR' | 'ALUNO';
+  role: 'ADMIN' | 'PROFESSOR' | 'ALUNO' | 'DEMO';
   _count: {
     bookingsCreated: number;
   };
@@ -68,6 +69,7 @@ const statusClasses = {
 const pendingPageSize = 4;
 
 export default function AdminPage() {
+  const { data: session } = useSession();
   const [activeTab, setActiveTab] = useState<'bookings' | 'users'>('bookings');
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [users, setUsers] = useState<User[]>([]);
@@ -77,6 +79,7 @@ export default function AdminPage() {
   const [rejectingBooking, setRejectingBooking] = useState<Booking | null>(null);
   const [rejectionReason, setRejectionReason] = useState('');
   const [pendingPage, setPendingPage] = useState(1);
+  const isDemo = session?.user?.role === 'DEMO';
 
   useEffect(() => {
     fetchData();
@@ -108,6 +111,11 @@ export default function AdminPage() {
   };
 
   const handleApprove = async (booking: Booking) => {
+    if (isDemo) {
+      toast.error('Perfil DEMO possui acesso somente para visualização.');
+      return;
+    }
+
     setProcessingId(booking.id);
 
     try {
@@ -131,6 +139,11 @@ export default function AdminPage() {
   };
 
   const openRejectModal = (booking: Booking) => {
+    if (isDemo) {
+      toast.error('Perfil DEMO possui acesso somente para visualização.');
+      return;
+    }
+
     setRejectingBooking(booking);
     setRejectionReason('');
   };
@@ -170,6 +183,11 @@ export default function AdminPage() {
   };
 
   const handleDeleteBooking = async (booking: Booking) => {
+    if (isDemo) {
+      toast.error('Perfil DEMO possui acesso somente para visualização.');
+      return;
+    }
+
     if (!confirm(`Excluir a reserva "${booking.course}"?`)) return;
 
     setProcessingId(booking.id);
@@ -245,6 +263,11 @@ export default function AdminPage() {
         <div className="mb-8" data-tour="admin-header">
           <h1 className="text-4xl font-black text-gray-900 mb-2">Painel Administrativo</h1>
           <p className="text-gray-600">Gerencie usuários e reservas do sistema</p>
+          {isDemo && (
+            <div className="mt-4 rounded-2xl border-2 border-purple-200 bg-purple-50 px-4 py-3 text-sm font-bold text-purple-800">
+              Modo DEMO: navegação liberada, alterações bloqueadas.
+            </div>
+          )}
 
           <div className="flex flex-wrap gap-4 mt-4">
             <Link href="/admin/usuarios" className="px-6 py-3 bg-blue-500 text-white rounded-lg hover:bg-blue-600 font-semibold">
@@ -333,7 +356,7 @@ export default function AdminPage() {
                         <div className="flex flex-wrap gap-2 lg:justify-end">
                           <button
                             onClick={() => handleApprove(booking)}
-                            disabled={processingId === booking.id}
+                            disabled={isDemo || processingId === booking.id}
                             className="inline-flex items-center justify-center gap-2 rounded-xl bg-green-600 px-4 py-2 font-bold text-white hover:bg-green-700 disabled:opacity-60"
                           >
                             <Check size={18} />
@@ -341,7 +364,7 @@ export default function AdminPage() {
                           </button>
                           <button
                             onClick={() => openRejectModal(booking)}
-                            disabled={processingId === booking.id}
+                            disabled={isDemo || processingId === booking.id}
                             className="inline-flex items-center justify-center gap-2 rounded-xl bg-red-600 px-4 py-2 font-bold text-white hover:bg-red-700 disabled:opacity-60"
                           >
                             <X size={18} />
@@ -433,7 +456,7 @@ export default function AdminPage() {
                                   <>
                                     <button
                                       onClick={() => handleApprove(booking)}
-                                      disabled={processingId === booking.id}
+                                      disabled={isDemo || processingId === booking.id}
                                       className="rounded-lg bg-green-50 p-2 text-green-700 hover:bg-green-100 disabled:opacity-60"
                                       title="Aprovar reserva"
                                     >
@@ -441,7 +464,7 @@ export default function AdminPage() {
                                     </button>
                                     <button
                                       onClick={() => openRejectModal(booking)}
-                                      disabled={processingId === booking.id}
+                                      disabled={isDemo || processingId === booking.id}
                                       className="rounded-lg bg-red-50 p-2 text-red-700 hover:bg-red-100 disabled:opacity-60"
                                       title="Rejeitar reserva"
                                     >
@@ -451,7 +474,7 @@ export default function AdminPage() {
                                 )}
                                 <button
                                   onClick={() => handleDeleteBooking(booking)}
-                                  disabled={processingId === booking.id}
+                                  disabled={isDemo || processingId === booking.id}
                                   className="rounded-lg bg-gray-50 p-2 text-gray-600 hover:bg-red-50 hover:text-red-700 disabled:opacity-60"
                                   title="Excluir reserva"
                                 >
@@ -497,6 +520,7 @@ export default function AdminPage() {
                       <td className="px-6 py-4">
                         <span className={`px-2 py-1 rounded text-xs font-bold ${
                           user.role === 'ADMIN' ? 'bg-red-100 text-red-800' :
+                          user.role === 'DEMO' ? 'bg-purple-100 text-purple-800' :
                           user.role === 'PROFESSOR' ? 'bg-blue-100 text-blue-800' :
                           'bg-gray-100 text-gray-800'
                         }`}>

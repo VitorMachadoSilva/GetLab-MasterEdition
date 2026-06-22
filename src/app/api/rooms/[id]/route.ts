@@ -4,6 +4,7 @@ import { apiError } from '@/lib/api-response';
 import { isValidCuid, readJsonObject } from '@/lib/api-validation';
 import { prisma } from '@/lib/prisma';
 import { parseRoomPayload } from '@/lib/room-validation';
+import { demoWriteBlocked, isDemoRole } from '@/lib/demo-access';
 
 // PATCH - Atualizar sala
 export async function PATCH(
@@ -12,7 +13,11 @@ export async function PATCH(
 ) {
   try {
     const session = await getActiveServerSession();
-    
+
+    if (isDemoRole(session?.user?.role)) {
+      return demoWriteBlocked();
+    }
+
     if (!session?.user || session.user.role !== 'ADMIN') {
       return apiError('Apenas administradores podem editar salas', { status: 403 });
     }
@@ -52,7 +57,11 @@ export async function DELETE(
 ) {
   try {
     const session = await getActiveServerSession();
-    
+
+    if (isDemoRole(session?.user?.role)) {
+      return demoWriteBlocked();
+    }
+
     if (!session?.user || session.user.role !== 'ADMIN') {
       return apiError('Apenas administradores podem excluir salas', { status: 403 });
     }

@@ -6,6 +6,7 @@ import { apiError } from '@/lib/api-response';
 import { cleanString, isValidCuid, readJsonObject } from '@/lib/api-validation';
 import { prisma } from '@/lib/prisma';
 import { BookingStatus, UserRole } from '@prisma/client';
+import { canReadAdminViews, demoWriteBlocked, isDemoRole } from '@/lib/demo-access';
 
 const activeBookingStatuses = ['PENDENTE', 'APROVADA'] as const;
 const validBookingStatuses = ['PENDENTE', 'APROVADA', 'REJEITADA', 'CANCELADA'] as const;
@@ -81,7 +82,7 @@ export async function GET(request: NextRequest) {
       return apiError('Sala inválida', { status: 400 });
     }
 
-    if (!publicView && session?.user?.role !== 'ADMIN') {
+    if (!publicView && !canReadAdminViews(session?.user?.role)) {
       const isOwnBookingsQuery = professorId === session?.user?.id;
       const isAvailabilityQuery = Boolean(date && roomId && !professorId);
       const isApprovedScheduleQuery = status === 'APROVADA' && !professorId;
@@ -116,7 +117,7 @@ export async function GET(request: NextRequest) {
       where.status = 'APROVADA';
     } else if (status) {
       where.status = status;
-    } else if (session?.user?.role !== 'ADMIN' && date && roomId && !professorId) {
+    } else if (!canReadAdminViews(session?.user?.role) && date && roomId && !professorId) {
       where.status = {
         in: [...activeBookingStatuses],
       };
@@ -202,6 +203,10 @@ export async function POST(request: NextRequest) {
 
     if (!sessionEmail) {
       return apiError('Sessão inválida. Faça login novamente.', { status: 401 });
+    }
+
+    if (isDemoRole(session.user.role)) {
+      return demoWriteBlocked();
     }
 
     let currentUser = await prisma.user.findUnique({

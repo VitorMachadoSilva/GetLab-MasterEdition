@@ -11,13 +11,14 @@ import {
   validateEmailForRole,
   validateName,
 } from '@/lib/user-validation';
+import { canReadAdminViews, demoWriteBlocked, isDemoRole } from '@/lib/demo-access';
 
 // GET - Listar usuários (apenas admin)
 export async function GET(request: NextRequest) {
   try {
     const session = await getActiveServerSession();
     
-    if (!session?.user || session.user.role !== 'ADMIN') {
+    if (!session?.user || !canReadAdminViews(session.user.role)) {
       return apiError('Apenas administradores podem listar usuários', { status: 403 });
     }
 
@@ -67,7 +68,11 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const session = await getActiveServerSession();
-    
+
+    if (isDemoRole(session?.user?.role)) {
+      return demoWriteBlocked();
+    }
+
     if (!session?.user || session.user.role !== 'ADMIN') {
       return apiError('Apenas administradores podem criar usuários', { status: 403 });
     }

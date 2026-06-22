@@ -273,6 +273,11 @@ export default function NovaReservaPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    if (isDemo) {
+      toast.error('Perfil DEMO possui acesso somente para visualização.');
+      return;
+    }
     
     if (!validateForm()) {
       return;
@@ -307,7 +312,8 @@ export default function NovaReservaPage() {
   if (loading) return <LoadingSpinner />;
 
   const selectedRoom = rooms.find(r => r.id === formData.roomId);
-  const isAdmin = session?.user?.role === 'ADMIN';
+  const isDemo = session?.user?.role === 'DEMO';
+  const isAdmin = session?.user?.role === 'ADMIN' || isDemo;
   const minDate = isAdmin ? getLocalDateInputValue() : getLocalDateInputValue(1);
   const selectedConflicts = getConflictingBookings(formData.startTime, formData.endTime);
   const availabilitySlots = startTimeSlots.map((startTime, index) => ({
@@ -408,6 +414,12 @@ export default function NovaReservaPage() {
             </div>
           </div>
         </div>
+
+        {isDemo && (
+          <div className="mb-8 rounded-2xl border-2 border-purple-200 bg-purple-50 p-5 text-sm font-bold text-purple-800">
+            Modo DEMO: você pode consultar salas, datas e disponibilidade, mas não pode enviar solicitações.
+          </div>
+        )}
 
         {/* Form */}
         <form onSubmit={handleSubmit} className="bg-white rounded-2xl shadow-xl p-5 sm:p-8 border-2 border-gray-100" data-tour="reserva-form">
@@ -887,10 +899,12 @@ export default function NovaReservaPage() {
             </button>
             <button
               type="submit"
-              disabled={submitting}
+              disabled={isDemo || submitting}
               className="flex-1 px-6 py-4 bg-gradient-to-r from-primary-500 to-secondary-500 text-white font-bold rounded-xl hover:shadow-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
             >
-              {submitting ? (
+              {isDemo ? (
+                'Modo Demo'
+              ) : submitting ? (
                 'Enviando...'
               ) : (
                 <>

@@ -1,7 +1,7 @@
 import { UserRole } from '@prisma/client';
 import { cleanString } from '@/lib/api-validation';
 
-const validUserRoles = ['ALUNO', 'PROFESSOR', 'ADMIN'] as const;
+const validUserRoles = ['ALUNO', 'PROFESSOR', 'ADMIN', 'DEMO'] as const;
 
 export function normalizeEmail(value: unknown) {
   return cleanString(value).toLowerCase();
@@ -65,6 +65,10 @@ export function validateEmailForRole(email: string, role: UserRole) {
 
   if (role === 'PROFESSOR' && !isProfessor) {
     return 'Professores devem usar email @fmpsc.edu.br';
+  }
+
+  if ((role === 'ADMIN' || role === 'DEMO') && !isProfessor) {
+    return 'Administradores e usuários demo devem usar email @fmpsc.edu.br';
   }
 
   return null;

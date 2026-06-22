@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import { useSession } from 'next-auth/react';
 import {
   AlertCircle,
   Edit2,
@@ -15,7 +16,7 @@ import toast from 'react-hot-toast';
 import { LoadingSpinner } from '@/components/Loading';
 import { readApiError } from '@/lib/api-client';
 
-type UserRole = 'TODOS' | 'ALUNO' | 'PROFESSOR' | 'ADMIN';
+type UserRole = 'TODOS' | 'ALUNO' | 'PROFESSOR' | 'ADMIN' | 'DEMO';
 
 type User = {
   id: string;
@@ -42,6 +43,7 @@ const roleOptions: Array<{ value: UserRole; label: string }> = [
   { value: 'PROFESSOR', label: 'Professores' },
   { value: 'ALUNO', label: 'Alunos' },
   { value: 'ADMIN', label: 'Admins' },
+  { value: 'DEMO', label: 'Demo' },
 ];
 
 const emptyForm: UserFormData = {
@@ -53,6 +55,7 @@ const emptyForm: UserFormData = {
 };
 
 export default function GerenciarUsuariosPage() {
+  const { data: session } = useSession();
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -61,6 +64,7 @@ export default function GerenciarUsuariosPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [roleFilter, setRoleFilter] = useState<UserRole>('TODOS');
   const [formData, setFormData] = useState<UserFormData>(emptyForm);
+  const isDemo = session?.user?.role === 'DEMO';
 
   useEffect(() => { fetchUsers(); }, []);
 
@@ -81,12 +85,22 @@ export default function GerenciarUsuariosPage() {
   };
 
   const openCreateModal = () => {
+    if (isDemo) {
+      toast.error('Perfil DEMO possui acesso somente para visualização.');
+      return;
+    }
+
     setEditingUser(null);
     setFormData(emptyForm);
     setShowModal(true);
   };
 
   const openEditModal = (user: User) => {
+    if (isDemo) {
+      toast.error('Perfil DEMO possui acesso somente para visualização.');
+      return;
+    }
+
     setEditingUser(user);
     setFormData({
       email: user.email,
@@ -127,6 +141,11 @@ export default function GerenciarUsuariosPage() {
   };
 
   const handleDelete = async (user: User) => {
+    if (isDemo) {
+      toast.error('Perfil DEMO possui acesso somente para visualização.');
+      return;
+    }
+
     if (!confirm(`Tem certeza que deseja excluir o usuário "${user.name}"?\n\nEsta ação não pode ser desfeita.`)) {
       return;
     }
@@ -219,9 +238,15 @@ export default function GerenciarUsuariosPage() {
           <div>
             <h1 className="text-4xl font-black text-gray-900">Gerenciar Usuários</h1>
             <p className="text-gray-600 mt-2">Adicione e gerencie usuários do sistema</p>
+            {isDemo && (
+              <div className="mt-4 rounded-2xl border-2 border-purple-200 bg-purple-50 px-4 py-3 text-sm font-bold text-purple-800">
+                Modo DEMO: usuários visíveis, criação e edição bloqueadas.
+              </div>
+            )}
           </div>
           <button
             onClick={openCreateModal}
+            disabled={isDemo}
             className="inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-primary-500 to-secondary-500 px-6 py-3 font-bold text-white transition-all hover:shadow-lg"
           >
             <UserPlus size={20} />
@@ -382,6 +407,7 @@ export default function GerenciarUsuariosPage() {
                     <option value="ALUNO">Aluno</option>
                     <option value="PROFESSOR">Professor</option>
                     <option value="ADMIN">Administrador</option>
+                    <option value="DEMO">Demo</option>
                   </select>
                   <RoleHint role={formData.role} />
                 </div>
@@ -484,6 +510,7 @@ function RoleBadge({ role }: { role: User['role'] }) {
     ADMIN: 'bg-red-100 text-red-800',
     PROFESSOR: 'bg-blue-100 text-blue-800',
     ALUNO: 'bg-gray-100 text-gray-800',
+    DEMO: 'bg-purple-100 text-purple-800',
   };
 
   return (
@@ -498,6 +525,7 @@ function RoleHint({ role }: { role: UserFormData['role'] }) {
     ALUNO: 'Alunos devem usar email @aluno.fmpsc.edu.br.',
     PROFESSOR: 'Professores devem usar email @fmpsc.edu.br.',
     ADMIN: 'Administradores usam email institucional e têm acesso completo ao sistema.',
+    DEMO: 'Usuários demo usam email institucional e têm acesso somente para visualização.',
   };
 
   return (

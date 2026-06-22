@@ -11,6 +11,7 @@ import {
   validateEmailForRole,
   validateName,
 } from '@/lib/user-validation';
+import { canReadAdminViews, demoWriteBlocked, isDemoRole } from '@/lib/demo-access';
 
 export async function GET(
   request: NextRequest,
@@ -27,7 +28,7 @@ export async function GET(
       return apiError('Usuário inválido', { status: 400 });
     }
 
-    if (session.user.role !== 'ADMIN' && session.user.id !== params.id) {
+    if (!canReadAdminViews(session.user.role) && session.user.id !== params.id) {
       return apiError('Sem permissão', { status: 403 });
     }
 
@@ -64,6 +65,10 @@ export async function PATCH(
     
     if (!session?.user) {
       return apiError('Não autenticado', { status: 401 });
+    }
+
+    if (isDemoRole(session.user.role)) {
+      return demoWriteBlocked();
     }
 
     if (!isValidCuid(params.id)) {
@@ -193,7 +198,11 @@ export async function DELETE(
 ) {
   try {
     const session = await getActiveServerSession();
-    
+
+    if (isDemoRole(session?.user?.role)) {
+      return demoWriteBlocked();
+    }
+
     if (!session?.user || session.user.role !== 'ADMIN') {
       return apiError('Apenas administradores podem excluir usuários', { status: 403 });
     }
