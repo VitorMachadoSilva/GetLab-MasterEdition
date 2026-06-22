@@ -3,6 +3,7 @@ import { getActiveServerSession } from '@/lib/session';
 import { apiError } from '@/lib/api-response';
 import { cleanString, isValidCuid, readJsonObject } from '@/lib/api-validation';
 import { prisma } from '@/lib/prisma';
+import { demoWriteBlocked, isDemoRole } from '@/lib/demo-access';
 
 const validDecisionStatuses = ['APROVADA', 'REJEITADA'] as const;
 
@@ -29,6 +30,10 @@ export async function PATCH(
     
     if (!session?.user) {
       return apiError('Não autenticado', { status: 401 });
+    }
+
+    if (isDemoRole(session.user.role)) {
+      return demoWriteBlocked();
     }
 
     if (!isValidCuid(params.id)) {
@@ -140,6 +145,10 @@ export async function DELETE(
     
     if (!session?.user) {
       return apiError('Não autenticado', { status: 401 });
+    }
+
+    if (isDemoRole(session.user.role)) {
+      return demoWriteBlocked();
     }
 
     if (!isValidCuid(params.id)) {

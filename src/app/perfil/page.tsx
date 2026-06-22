@@ -26,7 +26,7 @@ interface UserData {
   email: string;
   cpf: string;
   name: string;
-  role: 'ALUNO' | 'PROFESSOR' | 'ADMIN';
+  role: 'ALUNO' | 'PROFESSOR' | 'ADMIN' | 'DEMO';
   department?: string | null;
   createdAt?: string;
 }
@@ -41,6 +41,11 @@ const roleInfo = {
     label: 'Administrador',
     description: 'Acesso completo para aprovar reservas, gerenciar usuários e administrar salas.',
     badge: 'bg-red-100 text-red-800 border-red-200',
+  },
+  DEMO: {
+    label: 'Demo',
+    description: 'Acesso amplo para demonstração, sem permissão para alterar dados.',
+    badge: 'bg-purple-100 text-purple-800 border-purple-200',
   },
   PROFESSOR: {
     label: 'Professor',
@@ -85,7 +90,11 @@ export default function PerfilPage() {
 
       const [userRes, bookingsRes] = await Promise.all([
         fetch(`/api/users/${session?.user?.id}`),
-        fetch(session?.user?.role === 'ADMIN' ? '/api/bookings' : `/api/bookings?professorId=${session?.user?.id}`),
+        fetch(
+          session?.user?.role === 'ADMIN' || session?.user?.role === 'DEMO'
+            ? '/api/bookings'
+            : `/api/bookings?professorId=${session?.user?.id}`
+        ),
       ]);
 
       if (!userRes.ok) {
@@ -307,7 +316,9 @@ export default function PerfilPage() {
             {!canEdit && (
               <div className="mt-8 bg-blue-50 border-2 border-blue-200 rounded-xl p-4" data-tour="perfil-acoes">
                 <p className="text-sm text-blue-900 font-medium">
-                  Alunos não podem editar informações. Para solicitar alteração, entre em contato com a administração.
+                  {session?.user?.role === 'DEMO'
+                    ? 'Perfil DEMO é somente leitura. Nenhuma alteração pode ser feita nesta conta.'
+                    : 'Alunos não podem editar informações. Para solicitar alteração, entre em contato com a administração.'}
                 </p>
               </div>
             )}
@@ -331,10 +342,10 @@ export default function PerfilPage() {
               <div className="flex flex-wrap gap-2">
                 <span className="px-3 py-1 rounded-full bg-primary-50 text-primary-700 text-sm font-bold">Dashboard</span>
                 <span className="px-3 py-1 rounded-full bg-primary-50 text-primary-700 text-sm font-bold">Display</span>
-                {(userData.role === 'PROFESSOR' || userData.role === 'ADMIN') && (
+                {(userData.role === 'PROFESSOR' || userData.role === 'ADMIN' || userData.role === 'DEMO') && (
                   <span className="px-3 py-1 rounded-full bg-primary-50 text-primary-700 text-sm font-bold">Reservas</span>
                 )}
-                {userData.role === 'ADMIN' && (
+                {(userData.role === 'ADMIN' || userData.role === 'DEMO') && (
                   <span className="px-3 py-1 rounded-full bg-red-50 text-red-700 text-sm font-bold">Administração</span>
                 )}
               </div>

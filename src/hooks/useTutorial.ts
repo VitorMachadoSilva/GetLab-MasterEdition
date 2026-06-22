@@ -10,7 +10,7 @@ export interface TutorialStep {
   disableBeacon?: boolean;
 }
 
-type UserRole = 'ALUNO' | 'PROFESSOR' | 'ADMIN';
+type UserRole = 'ALUNO' | 'PROFESSOR' | 'ADMIN' | 'DEMO';
 
 type TutorialPage =
   | 'dashboard'
@@ -41,6 +41,13 @@ const commonIntro: Record<UserRole, TutorialStep> = {
     target: 'body',
     content: 'Bem-vindo, Administrador! Este guia destaca os controles mais importantes da página atual.',
     title: 'Olá, Admin!',
+    placement: 'center',
+    disableBeacon: true,
+  },
+  DEMO: {
+    target: 'body',
+    content: 'Bem-vindo ao modo Demo! Você pode navegar pelas páginas, mas não poderá criar, editar ou excluir dados.',
+    title: 'Olá, Demo!',
     placement: 'center',
     disableBeacon: true,
   },

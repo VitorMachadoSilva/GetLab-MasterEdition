@@ -20,17 +20,20 @@ export default function Navbar() {
     return null;
   }
 
+  const isDemo = session?.user?.role === 'DEMO';
   const isAdmin = session?.user?.role === 'ADMIN';
   const isProfessor = session?.user?.role === 'PROFESSOR';
+  const canSeeAdmin = isAdmin || isDemo;
+  const canSeeProfessor = isProfessor || isAdmin || isDemo;
 
   const navItems = [
     { href: '/dashboard', icon: Home, label: 'Início', show: true, tour: 'dashboard' },
     { href: '/display', icon: Monitor, label: 'Display', show: true, tour: 'display' },
-    { href: '/professor/nova-reserva', icon: PlusCircle, label: 'Nova Reserva', show: isProfessor || isAdmin, tour: 'nova-reserva' },
-    { href: '/professor/minhas-reservas', icon: FileText, label: 'Minhas Reservas', show: isProfessor || isAdmin, tour: 'minhas-reservas' },
-    { href: '/admin', icon: Shield, label: 'Admin', show: isAdmin, tour: 'admin-panel' },
-    { href: '/admin/usuarios', icon: User, label: 'Usuários', show: isAdmin, tour: 'usuarios' },
-    { href: '/admin/salas', icon: MapPin, label: 'Salas', show: isAdmin, tour: 'salas' },
+    { href: '/professor/nova-reserva', icon: PlusCircle, label: 'Nova Reserva', show: canSeeProfessor, tour: 'nova-reserva' },
+    { href: '/professor/minhas-reservas', icon: FileText, label: 'Minhas Reservas', show: canSeeProfessor, tour: 'minhas-reservas' },
+    { href: '/admin', icon: Shield, label: 'Admin', show: canSeeAdmin, tour: 'admin-panel' },
+    { href: '/admin/usuarios', icon: User, label: 'Usuários', show: canSeeAdmin, tour: 'usuarios' },
+    { href: '/admin/salas', icon: MapPin, label: 'Salas', show: canSeeAdmin, tour: 'salas' },
     { href: '/perfil', icon: User, label: 'Perfil', show: true, tour: 'profile-menu' },
   ];
   const visibleNavItems = navItems.filter(item => item.show);
