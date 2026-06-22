@@ -7,6 +7,7 @@ import AuthSessionGuard from '@/components/AuthSessionGuard';
 import Navbar from '@/components/Navbar';
 import GuidedTutorial from '@/components/GuidedTutorial';
 import { Toaster } from 'react-hot-toast';
+import { Analytics } from '@vercel/analytics/next';
 
 const inter = Inter({ subsets: ['latin'] });
 
@@ -66,6 +67,7 @@ export default function RootLayout({
           />
           {children}
         </SessionProviderWrapper>
+        <Analytics />
       </body>
     </html>
   );
