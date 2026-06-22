@@ -50,18 +50,36 @@ const rangesOverlap = (
 ) => timeToMinutes(firstStart) < timeToMinutes(secondEnd) &&
   timeToMinutes(firstEnd) > timeToMinutes(secondStart);
 
-const getLocalDateInputValue = (offsetDays = 0) => {
-  const date = new Date();
-  date.setDate(date.getDate() + offsetDays);
+const formatLocalDateInputValue = (date: Date) => {
   const year = date.getFullYear();
   const month = String(date.getMonth() + 1).padStart(2, '0');
   const day = String(date.getDate()).padStart(2, '0');
   return `${year}-${month}-${day}`;
 };
 
+const getLocalDateInputValue = (offsetDays = 0) => {
+  const date = new Date();
+  date.setDate(date.getDate() + offsetDays);
+  return formatLocalDateInputValue(date);
+};
+
 const parseLocalDateInput = (date: string) => {
   const [year, month, day] = date.split('-').map(Number);
   return new Date(year, month - 1, day);
+};
+
+const isBeforeLocalDate = (date: string, minDate: string) =>
+  parseLocalDateInput(date).getTime() < parseLocalDateInput(minDate).getTime();
+
+const getWeekStartDateInputValue = (selectedDate: string, minDate: string) => {
+  const date = parseLocalDateInput(selectedDate);
+  const dayOfWeek = date.getDay();
+  const daysFromMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
+
+  date.setDate(date.getDate() - daysFromMonday);
+
+  const weekStart = formatLocalDateInputValue(date);
+  return isBeforeLocalDate(weekStart, minDate) ? minDate : weekStart;
 };
 
 const getDateOptions = (startDate: string, days = 7) => {
@@ -71,11 +89,7 @@ const getDateOptions = (startDate: string, days = 7) => {
     const date = new Date(firstDate);
     date.setDate(firstDate.getDate() + index);
 
-    const value = [
-      date.getFullYear(),
-      String(date.getMonth() + 1).padStart(2, '0'),
-      String(date.getDate()).padStart(2, '0'),
-    ].join('-');
+    const value = formatLocalDateInputValue(date);
 
     return {
       value,
@@ -298,7 +312,10 @@ export default function NovaReservaPage() {
     ),
   }));
   const sortedBookings = [...bookings].sort((a, b) => a.startTime.localeCompare(b.startTime));
-  const quickDateOptions = getDateOptions(minDate, 7);
+  const quickDateOptions = getDateOptions(
+    getWeekStartDateInputValue(formData.date || minDate, minDate),
+    7
+  );
   const busySlotsCount = availabilitySlots.filter((slot) => slot.busyBookings.length > 0).length;
   const freeSlotsCount = availabilitySlots.length - busySlotsCount;
   const occupancyPercentage = Math.round((busySlotsCount / availabilitySlots.length) * 100);
