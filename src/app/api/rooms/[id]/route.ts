@@ -5,6 +5,7 @@ import { isValidCuid, readJsonObject } from '@/lib/api-validation';
 import { prisma } from '@/lib/prisma';
 import { parseRoomPayload } from '@/lib/room-validation';
 import { demoWriteBlocked, isDemoRole } from '@/lib/demo-access';
+import { createNotification } from '@/lib/notifications';
 
 // PATCH - Atualizar sala
 export async function PATCH(
@@ -41,6 +42,12 @@ export async function PATCH(
     const room = await prisma.room.update({
       where: { id: params.id },
       data: parsedRoom.data,
+    });
+
+    await createNotification({
+      title: 'Sala atualizada',
+      message: `${session.user.name} atualizou a sala ${room.name}.`,
+      type: 'ROOM',
     });
 
     return NextResponse.json(room);
@@ -87,8 +94,14 @@ export async function DELETE(
       );
     }
 
-    await prisma.room.delete({
+    const deletedRoom = await prisma.room.delete({
       where: { id: params.id },
+    });
+
+    await createNotification({
+      title: 'Sala excluída',
+      message: `${session.user.name} excluiu a sala ${deletedRoom.name}.`,
+      type: 'ROOM',
     });
 
     return NextResponse.json({ message: 'Sala excluída com sucesso' });

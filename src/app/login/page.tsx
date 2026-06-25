@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { signIn } from 'next-auth/react';
 import { LogIn, Mail, Lock, AlertCircle, Eye, EyeOff } from 'lucide-react';
 import toast from 'react-hot-toast';
@@ -10,6 +10,36 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [formData, setFormData] = useState({ email: '', password: '' });
+  const emailTouched = formData.email.length > 0;
+  const passwordTouched = formData.password.length > 0;
+  const validation = useMemo(() => {
+    const email = formData.email.trim();
+    const password = formData.password.trim();
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    const errors: { email?: string; password?: string } = {};
+
+    if (emailTouched && !email) {
+      errors.email = 'Informe um email válido';
+    } else if (emailTouched && !emailRegex.test(email)) {
+      errors.email = 'Email inválido';
+    }
+
+    if (passwordTouched && !password) {
+      errors.password = 'CPF não pode ficar vazio';
+    } else if (passwordTouched && /^\d+$/.test(password) && password.length !== 11) {
+      errors.password = 'CPF deve ter 11 números';
+    }
+
+    return {
+      errors,
+      isValid:
+        emailRegex.test(email) &&
+        password.length > 0 &&
+        password.length <= 11 &&
+        !/\s/.test(formData.password) &&
+        (!/^\d+$/.test(password) || password.length === 11),
+    };
+  }, [emailTouched, formData.email, formData.password, passwordTouched]);
 
   useEffect(() => {
     setReady(true);
@@ -17,7 +47,7 @@ export default function LoginPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!ready || loading) return;
+    if (!ready || loading || !validation.isValid) return;
 
     const callbackUrlParam = new URLSearchParams(window.location.search).get('callbackUrl');
     const callbackUrl =
@@ -95,12 +125,22 @@ export default function LoginPage() {
                   <input
                     type="email"
                     value={formData.email}
-                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                    onChange={(e) => setFormData({ ...formData, email: e.target.value.replace(/\s/g, '') })}
                     placeholder="seu.nome@fmpsc.edu.br"
                     required
-                    className="input-modern w-full pl-12 pr-4 py-4 border-2 border-gray-200 rounded-xl font-medium focus:border-primary-500 transition-all"
+                    className={`input-modern w-full pl-12 pr-4 py-4 border-2 rounded-xl font-medium transition-all ${
+                      validation.errors.email
+                        ? 'border-red-400 bg-red-50 focus:border-red-500'
+                        : 'border-gray-200 focus:border-primary-500'
+                    }`}
                   />
                 </div>
+                {validation.errors.email && (
+                  <p className="mt-2 flex items-center gap-2 text-sm font-bold text-red-600">
+                    <AlertCircle size={15} />
+                    {validation.errors.email}
+                  </p>
+                )}
               </div>
 
               <div>
@@ -112,10 +152,16 @@ export default function LoginPage() {
                   <input
                     type={showPassword ? 'text' : 'password'}
                     value={formData.password}
-                    onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                    onChange={(e) => setFormData({ ...formData, password: e.target.value.replace(/\s/g, '').slice(0, 11) })}
                     placeholder="Seu CPF (sem pontos)"
                     required
-                    className="input-modern w-full pl-12 pr-12 py-4 border-2 border-gray-200 rounded-xl font-medium focus:border-primary-500 transition-all"
+                    maxLength={11}
+                    inputMode="numeric"
+                    className={`input-modern w-full pl-12 pr-12 py-4 border-2 rounded-xl font-medium transition-all ${
+                      validation.errors.password
+                        ? 'border-red-400 bg-red-50 focus:border-red-500'
+                        : 'border-gray-200 focus:border-primary-500'
+                    }`}
                   />
                   <button
                     type="button"
@@ -127,11 +173,17 @@ export default function LoginPage() {
                     {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
                   </button>
                 </div>
+                {validation.errors.password && (
+                  <p className="mt-2 flex items-center gap-2 text-sm font-bold text-red-600">
+                    <AlertCircle size={15} />
+                    {validation.errors.password}
+                  </p>
+                )}
               </div>
 
               <button
                 type="submit"
-                disabled={!ready || loading}
+                disabled={!ready || loading || !validation.isValid}
                 className="btn-modern w-full bg-gradient-fmpsc text-white py-4 rounded-xl font-black text-lg shadow-modern hover:shadow-glow disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-3"
               >
                 {!ready ? (

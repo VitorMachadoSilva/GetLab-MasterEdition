@@ -4,8 +4,12 @@ import { apiError } from '@/lib/api-response';
 import { cleanString, isValidCuid, readJsonObject } from '@/lib/api-validation';
 import { prisma } from '@/lib/prisma';
 import { demoWriteBlocked, isDemoRole } from '@/lib/demo-access';
+import { createNotification } from '@/lib/notifications';
 
 const validDecisionStatuses = ['APROVADA', 'REJEITADA'] as const;
+const approvalLimitHours = 2;
+const autoCancelMessage =
+  'Cancelamento automático: prazo de aprovação expirado. O administrador tinha até 2 horas antes do início da reserva para aprovar.';
 
 function getDateRange(date: Date) {
   return {
@@ -18,6 +22,21 @@ function appendNote(currentNote: string | null, label: string, reason: string) {
   const cleanReason = reason.trim();
   const entry = `${label}: ${cleanReason}`;
   return currentNote ? `${currentNote}\n\n${entry}` : entry;
+}
+
+function getBookingDateTime(date: Date, time: string) {
+  const [hours, minutes] = time.split(':').map(Number);
+  const bookingDateTime = new Date(date);
+  bookingDateTime.setHours(hours, minutes, 0, 0);
+  return bookingDateTime;
+}
+
+function appendAutoCancelNote(currentNote: string | null) {
+  if (currentNote?.includes(autoCancelMessage)) {
+    return currentNote;
+  }
+
+  return currentNote ? `${currentNote}\n\n${autoCancelMessage}` : autoCancelMessage;
 }
 
 // PATCH - Atualizar status da reserva
@@ -66,6 +85,40 @@ export async function PATCH(
 
     if (!currentBooking) {
       return apiError('Reserva não encontrada', { status: 404 });
+    }
+
+    const approvalDeadlinePassed =
+      getBookingDateTime(currentBooking.date, currentBooking.startTime).getTime() -
+        Date.now() <=
+      approvalLimitHours * 60 * 60 * 1000;
+
+    if (currentBooking.status === 'PENDENTE' && approvalDeadlinePassed) {
+      const canceledBooking = await prisma.booking.update({
+        where: { id: params.id },
+        data: {
+          status: 'CANCELADA',
+          notes: appendAutoCancelNote(currentBooking.notes),
+        },
+        include: {
+          room: true,
+          professor: {
+            select: {
+              id: true,
+              name: true,
+              email: true,
+            },
+          },
+        },
+      });
+
+      await createNotification({
+        title: 'Reserva cancelada automaticamente',
+        message: `${canceledBooking.course} foi cancelada porque passou do prazo de aprovação.`,
+        type: 'BOOKING',
+        targetUserIds: [canceledBooking.professorId],
+      });
+
+      return apiError(autoCancelMessage, { status: 400 });
     }
 
     if (
@@ -126,6 +179,13 @@ export async function PATCH(
           },
         },
       },
+    });
+
+    await createNotification({
+      title: nextStatus === 'APROVADA' ? 'Reserva aprovada' : 'Reserva rejeitada',
+      message: `${session.user.name} ${nextStatus === 'APROVADA' ? 'aprovou' : 'rejeitou'} ${booking.course} em ${booking.room.name}.`,
+      type: 'BOOKING',
+      targetUserIds: [booking.professorId],
     });
 
     return NextResponse.json(booking);
@@ -200,8 +260,22 @@ export async function DELETE(
         },
       });
 
+      await createNotification({
+        title: 'Reserva cancelada',
+        message: `${session.user.name} cancelou a reserva ${booking.course}.`,
+        type: 'BOOKING',
+        targetUserIds: [booking.professorId],
+      });
+
       return NextResponse.json(canceledBooking);
     }
+
+    await createNotification({
+      title: 'Reserva excluída',
+      message: `${session.user.name} excluiu a reserva ${booking.course}.`,
+      type: 'BOOKING',
+      targetUserIds: [booking.professorId],
+    });
 
     await prisma.booking.delete({
       where: { id: params.id },

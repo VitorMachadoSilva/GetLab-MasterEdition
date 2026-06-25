@@ -2,10 +2,11 @@
 
 import { useEffect, useState } from 'react';
 import { useSession } from 'next-auth/react';
-import { MapPin, Clock, Users, Calendar, RefreshCw } from 'lucide-react';
+import { ChevronLeft, ChevronRight, MapPin, Clock, Users, Calendar, RefreshCw } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { LoadingSpinner } from '@/components/Loading';
 import { readApiError } from '@/lib/api-client';
+import DatePickerButton from '@/components/DatePickerButton';
 
 interface Booking {
   id: string;
@@ -22,6 +23,7 @@ export default function DashboardPage() {
   const { data: session } = useSession();
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [currentTime, setCurrentTime] = useState(new Date());
   
   // Helper: pega data local sem UTC
@@ -42,6 +44,7 @@ export default function DashboardPage() {
   }, [selectedDate]);
 
   const fetchTodayBookings = async () => {
+    setRefreshing(true);
     try {
       const res = await fetch(`/api/bookings?date=${selectedDate}&status=APROVADA`);
       if (res.ok) {
@@ -53,7 +56,16 @@ export default function DashboardPage() {
       toast.error('Não foi possível carregar as reservas. Verifique sua conexão e tente novamente.');
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
+  };
+
+  const moveSelectedDate = (days: number) => {
+    const [year, month, day] = selectedDate.split('-').map(Number);
+    const date = new Date(year, month - 1, day);
+    date.setDate(date.getDate() + days);
+    const nextDate = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+    setSelectedDate(nextDate);
   };
 
   const isCurrentlyHappening = (startTime: string, endTime: string) => {
@@ -76,7 +88,7 @@ export default function DashboardPage() {
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 p-4">
       <div className="max-w-7xl mx-auto">
         {/* Header - COMPACTO */}
-        <div className="mb-6 animate-fade-in-up" data-tour="dashboard-header">
+        <div className="relative z-40 mb-6 animate-fade-in-up" data-tour="dashboard-header">
           <div className="glass rounded-2xl p-5 shadow-modern border-2 border-white/20">
             <div className="flex items-center justify-between mb-4">
               <div>
@@ -104,20 +116,31 @@ export default function DashboardPage() {
             <div className="flex gap-3 items-center flex-wrap">
               <button
                 onClick={fetchTodayBookings}
+                disabled={refreshing}
                 className="btn-modern bg-gradient-fmpsc text-white px-4 py-2 rounded-xl shadow-modern hover:shadow-glow font-semibold flex items-center gap-2 text-sm"
               >
-                <RefreshCw size={16} />
+                <RefreshCw size={16} className={refreshing ? 'animate-spin' : ''} />
                 Atualizar
               </button>
 
-              <div className="flex items-center gap-2">
-                <Calendar size={18} className="text-primary-600" />
-                <input
-                  type="date"
-                  value={selectedDate}
-                  onChange={(e) => setSelectedDate(e.target.value)}
-                  className="input-modern px-3 py-2 border-2 border-gray-200 rounded-xl font-semibold text-sm focus:border-primary-500"
-                />
+              <div className="flex flex-wrap items-center gap-2 rounded-2xl border-2 border-primary-100 bg-white/80 p-2 shadow-sm">
+                <button
+                  type="button"
+                  onClick={() => moveSelectedDate(-1)}
+                  className="inline-flex h-10 w-10 items-center justify-center rounded-xl text-primary-700 transition-colors hover:bg-primary-50"
+                  aria-label="Dia anterior"
+                >
+                  <ChevronLeft size={18} />
+                </button>
+                <DatePickerButton value={selectedDate} onChange={setSelectedDate} className="w-[190px]" />
+                <button
+                  type="button"
+                  onClick={() => moveSelectedDate(1)}
+                  className="inline-flex h-10 w-10 items-center justify-center rounded-xl text-primary-700 transition-colors hover:bg-primary-50"
+                  aria-label="Próximo dia"
+                >
+                  <ChevronRight size={18} />
+                </button>
                 {selectedDate !== getLocalDateString() && (
                   <button
                     onClick={() => setSelectedDate(getLocalDateString())}
@@ -175,7 +198,7 @@ export default function DashboardPage() {
         )}
 
         {/* Upcoming Classes - COMPACTO */}
-        <div className="mb-6" data-tour="upcoming-classes">
+        <div className="relative z-0 mb-6" data-tour="upcoming-classes">
           <h3 className="text-xl font-black text-gray-800 mb-3 flex items-center gap-2">
             <Calendar size={22} />
             Próximas Aulas
@@ -225,7 +248,7 @@ export default function DashboardPage() {
         </div>
 
         {/* All Bookings Table - COMPACTA */}
-        <div className="animate-fade-in-up" style={{ animationDelay: '0.2s' }}>
+        <div className="relative z-0 animate-fade-in-up" style={{ animationDelay: '0.2s' }}>
           <h3 className="text-xl font-black text-gray-800 mb-3">Todas as Reservas ({bookings.length})</h3>
           <div className="glass rounded-2xl overflow-hidden shadow-modern border-2 border-white/20">
             <div className="overflow-x-auto">
@@ -258,7 +281,7 @@ export default function DashboardPage() {
                         <div className="font-semibold text-sm">{booking.room.name}</div>
                         <div className="text-xs text-gray-500">{booking.room.building}</div>
                       </td>
-                      <td className="px-4 py-2 text-sm text-gray-600">{booking.students}</td>
+                      <td className="px-4 py-2 text-sm text-gray-600">{booking.students || 'Não informado'}</td>
                     </tr>
                   ))}
                 </tbody>

@@ -9,7 +9,6 @@ import {
   Clock3,
   Edit3,
   FileText,
-  LogOut,
   Mail,
   Save,
   ShieldCheck,
@@ -224,13 +223,6 @@ export default function PerfilPage() {
                 >
                   Voltar ao painel
                 </Link>
-                <button
-                  onClick={() => signOut({ callbackUrl: '/login' })}
-                  className="px-5 py-3 rounded-xl bg-white text-primary-700 font-bold hover:bg-primary-50 transition-all flex items-center justify-center gap-2"
-                >
-                  <LogOut size={18} />
-                  Sair
-                </button>
               </div>
             </div>
           </div>

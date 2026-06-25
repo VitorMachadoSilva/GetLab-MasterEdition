@@ -12,6 +12,7 @@ import {
   validateName,
 } from '@/lib/user-validation';
 import { canReadAdminViews, demoWriteBlocked, isDemoRole } from '@/lib/demo-access';
+import { createNotification } from '@/lib/notifications';
 
 // GET - Listar usuários (apenas admin)
 export async function GET(request: NextRequest) {
@@ -106,6 +107,10 @@ export async function POST(request: NextRequest) {
       return apiError(department.error, { status: 400 });
     }
 
+    if (role === 'ALUNO' && !department.value) {
+      return apiError('Curso é obrigatório para alunos', { status: 400 });
+    }
+
     const emailError = validateEmailForRole(emailLower, role);
 
     if (emailError) {
@@ -143,6 +148,12 @@ export async function POST(request: NextRequest) {
         department: true,
         createdAt: true,
       },
+    });
+
+    await createNotification({
+      title: 'Novo usuário cadastrado',
+      message: `${session.user.name} cadastrou ${user.name} como ${user.role}.`,
+      type: 'USER',
     });
 
     return NextResponse.json(user, { status: 201 });

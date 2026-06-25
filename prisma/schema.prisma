@@ -55,7 +55,7 @@ model Room {
   id       String   @id @default(cuid())
   name     String
   type     RoomType
-  capacity Int
+  capacity Int?
   building String
   floor    Int?
   equipment String[] // Array de equipamentos
@@ -72,6 +72,29 @@ model Room {
   @@map("rooms")
 }
 
+model Equipment {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("equipment")
+}
+
+model Notification {
+  id            String   @id @default(cuid())
+  title         String
+  message       String
+  type          String   @default("INFO")
+  readBy        String[] @default([])
+  targetUserIds String[] @default([])
+  deletedBy     String[] @default([])
+  createdAt     DateTime @default(now())
+
+  @@index([createdAt])
+  @@map("notifications")
+}
+
 model Booking {
   id        String        @id @default(cuid())
   
@@ -80,7 +103,7 @@ model Booking {
   startTime String // Formato: "HH:MM"
   endTime   String // Formato: "HH:MM"
   date      DateTime // Data da reserva
-  students  Int
+  students  Int @default(0)
   notes     String?
   
   // Status e aprovação

@@ -20,21 +20,36 @@ const EQUIPMENT_OPTIONS = [
   'Palco',
 ];
 
+type Equipment = {
+  id: string;
+  name: string;
+};
+
 export default function GerenciarSalasPage() {
   const { data: session } = useSession();
   const [rooms, setRooms] = useState<any[]>([]);
+  const [equipmentList, setEquipmentList] = useState<Equipment[]>([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [editingRoom, setEditingRoom] = useState<any>(null);
+  const [equipmentName, setEquipmentName] = useState('');
+  const [editingEquipment, setEditingEquipment] = useState<Equipment | null>(null);
+  const [equipmentSaving, setEquipmentSaving] = useState(false);
   const [formData, setFormData] = useState({
     name: '', type: 'SALA_AULA', capacity: '', building: '', floor: '', equipment: [] as string[]
   });
   const isDemo = session?.user?.role === 'DEMO';
 
-  useEffect(() => { fetchRooms(); }, []);
+  useEffect(() => { fetchInitialData(); }, []);
 
-  const fetchRooms = async () => {
+  const fetchInitialData = async () => {
     setLoading(true);
+    await Promise.all([fetchRooms(false), fetchEquipment(false)]);
+    setLoading(false);
+  };
+
+  const fetchRooms = async (showLoader = true) => {
+    if (showLoader) setLoading(true);
     try {
       const res = await fetch('/api/rooms');
       if (res.ok) {
@@ -46,7 +61,23 @@ export default function GerenciarSalasPage() {
     } catch (error) {
       toast.error('Não foi possível carregar as salas. Verifique sua conexão e tente novamente.');
     } finally {
-      setLoading(false);
+      if (showLoader) setLoading(false);
+    }
+  };
+
+  const fetchEquipment = async (showLoader = true) => {
+    if (showLoader) setLoading(true);
+    try {
+      const res = await fetch('/api/equipment');
+      if (res.ok) {
+        setEquipmentList(await res.json());
+      } else {
+        toast.error(await readApiError(res, 'Não foi possível carregar os equipamentos'));
+      }
+    } catch (error) {
+      toast.error('Não foi possível carregar os equipamentos. Verifique sua conexão e tente novamente.');
+    } finally {
+      if (showLoader) setLoading(false);
     }
   };
 
@@ -71,7 +102,7 @@ export default function GerenciarSalasPage() {
     setFormData({
       name: room.name,
       type: room.type,
-      capacity: room.capacity.toString(),
+      capacity: room.capacity?.toString() || '',
       building: room.building === 'Não informado' ? '' : room.building,
       floor: room.floor?.toString() || '',
       equipment: room.equipment || []
@@ -94,6 +125,83 @@ export default function GerenciarSalasPage() {
     }));
   };
 
+  const resetEquipmentForm = () => {
+    setEquipmentName('');
+    setEditingEquipment(null);
+  };
+
+  const handleSaveEquipment = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    if (isDemo) {
+      toast.error('Perfil DEMO possui acesso somente para visualização.');
+      return;
+    }
+
+    const name = equipmentName.trim();
+
+    if (!name) {
+      toast.error('Informe o nome do equipamento');
+      return;
+    }
+
+    setEquipmentSaving(true);
+
+    try {
+      const res = await fetch(editingEquipment ? `/api/equipment/${editingEquipment.id}` : '/api/equipment', {
+        method: editingEquipment ? 'PATCH' : 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name }),
+      });
+
+      if (res.ok) {
+        toast.success(editingEquipment ? 'Equipamento atualizado!' : 'Equipamento criado!');
+        resetEquipmentForm();
+        await Promise.all([fetchEquipment(false), fetchRooms(false)]);
+      } else {
+        toast.error(await readApiError(res, 'Não foi possível salvar o equipamento'));
+      }
+    } catch (error) {
+      toast.error('Não foi possível salvar o equipamento. Verifique sua conexão e tente novamente.');
+    } finally {
+      setEquipmentSaving(false);
+    }
+  };
+
+  const handleEditEquipment = (equipment: Equipment) => {
+    if (isDemo) {
+      toast.error('Perfil DEMO possui acesso somente para visualização.');
+      return;
+    }
+
+    setEditingEquipment(equipment);
+    setEquipmentName(equipment.name);
+  };
+
+  const handleDeleteEquipment = async (equipment: Equipment) => {
+    if (isDemo) {
+      toast.error('Perfil DEMO possui acesso somente para visualização.');
+      return;
+    }
+
+    if (!confirm(`Excluir o equipamento "${equipment.name}"?`)) return;
+
+    try {
+      const res = await fetch(`/api/equipment/${equipment.id}`, {
+        method: 'DELETE',
+      });
+
+      if (res.ok) {
+        toast.success('Equipamento excluído!');
+        await fetchEquipment(false);
+      } else {
+        toast.error(await readApiError(res, 'Não foi possível excluir o equipamento'));
+      }
+    } catch (error) {
+      toast.error('Não foi possível excluir o equipamento. Verifique sua conexão e tente novamente.');
+    }
+  };
+
   const handleDelete = async (roomId: string, roomName: string) => {
     if (isDemo) {
       toast.error('Perfil DEMO possui acesso somente para visualização.');
@@ -110,7 +218,7 @@ export default function GerenciarSalasPage() {
       });
 
       if (res.ok) {
-        toast.success('✅ Sala excluída com sucesso!');
+        toast.success('  Sala excluída com sucesso!');
         fetchRooms();
       } else {
         toast.error(await readApiError(res, 'Não foi possível excluir a sala'));
@@ -126,7 +234,7 @@ export default function GerenciarSalasPage() {
     try {
       const payload = {
         ...formData,
-        capacity: parseInt(formData.capacity),
+        capacity: formData.capacity ? parseInt(formData.capacity) : null,
         building: formData.building.trim(),
         floor: formData.floor ? parseInt(formData.floor) : null,
       };
@@ -141,7 +249,7 @@ export default function GerenciarSalasPage() {
       });
 
       if (res.ok) {
-        toast.success(editingRoom ? '✅ Sala atualizada com sucesso!' : '✅ Sala criada com sucesso!');
+        toast.success(editingRoom ? '  Sala atualizada com sucesso!' : '  Sala criada com sucesso!');
         closeModal();
         fetchRooms();
       } else {
@@ -179,23 +287,97 @@ export default function GerenciarSalasPage() {
 
         {/* Stats */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8" data-tour="admin-salas-metricas">
-          <div className="bg-white rounded-xl p-6 border-2 border-gray-200">
-            <div className="text-3xl font-black text-gray-900">{rooms.length}</div>
-            <div className="text-sm text-gray-600 font-medium">Total de Salas</div>
+          <div className="bg-white rounded-xl p-4 border-2 border-gray-200">
+            <div className="text-2xl font-black text-gray-900">{rooms.length}</div>
+            <div className="text-xs font-bold uppercase text-gray-600">Total de Salas</div>
           </div>
-          <div className="bg-blue-50 rounded-xl p-6 border-2 border-blue-200">
-            <div className="text-3xl font-black text-blue-800">{rooms.filter(r => r.type === 'LABORATORIO').length}</div>
-            <div className="text-sm text-blue-700 font-medium">Laboratórios</div>
+          <div className="bg-blue-50 rounded-xl p-4 border-2 border-blue-200">
+            <div className="text-2xl font-black text-blue-800">{rooms.filter(r => r.type === 'LABORATORIO').length}</div>
+            <div className="text-xs font-bold uppercase text-blue-700">Laboratórios</div>
           </div>
-          <div className="bg-green-50 rounded-xl p-6 border-2 border-green-200">
-            <div className="text-3xl font-black text-green-800">{rooms.filter(r => r.type === 'SALA_AULA').length}</div>
-            <div className="text-sm text-green-700 font-medium">Salas de Aula</div>
+          <div className="bg-green-50 rounded-xl p-4 border-2 border-green-200">
+            <div className="text-2xl font-black text-green-800">{rooms.filter(r => r.type === 'SALA_AULA').length}</div>
+            <div className="text-xs font-bold uppercase text-green-700">Salas de Aula</div>
           </div>
-          <div className="bg-purple-50 rounded-xl p-6 border-2 border-purple-200">
-            <div className="text-3xl font-black text-purple-800">{rooms.filter(r => r.type === 'AUDITORIO').length}</div>
-            <div className="text-sm text-purple-700 font-medium">Auditórios</div>
+          <div className="bg-purple-50 rounded-xl p-4 border-2 border-purple-200">
+            <div className="text-2xl font-black text-purple-800">{rooms.filter(r => r.type === 'AUDITORIO').length}</div>
+            <div className="text-xs font-bold uppercase text-purple-700">Auditórios</div>
           </div>
         </div>
+
+        <section className="mb-8 rounded-2xl border-2 border-primary-100 bg-white p-5 shadow-sm">
+          <div className="mb-4">
+            <h2 className="text-2xl font-black text-gray-900">Equipamentos das Salas</h2>
+            <p className="text-sm font-semibold text-gray-500">
+              Gerencie as opções que aparecem ao cadastrar ou editar uma sala.
+            </p>
+          </div>
+
+          <form onSubmit={handleSaveEquipment} className="mb-4 grid gap-3 lg:grid-cols-[1fr_auto_auto]">
+            <input
+              type="text"
+              value={equipmentName}
+              onChange={(e) => setEquipmentName(e.target.value)}
+              placeholder="Ex: Câmera, Notebook, Projetor HDMI..."
+              maxLength={40}
+              disabled={isDemo}
+              className="rounded-xl border-2 border-gray-200 px-4 py-3 font-semibold outline-none transition-all focus:border-primary-500 focus:ring-4 focus:ring-primary-100 disabled:opacity-60"
+            />
+            {editingEquipment && (
+              <button
+                type="button"
+                onClick={resetEquipmentForm}
+                className="rounded-xl border-2 border-gray-200 px-5 py-3 font-bold text-gray-700 transition-colors hover:bg-gray-50"
+              >
+                Cancelar
+              </button>
+            )}
+            <button
+              type="submit"
+              disabled={isDemo || equipmentSaving}
+              className="rounded-xl bg-gradient-to-r from-primary-500 to-secondary-500 px-5 py-3 font-bold text-white transition-all hover:shadow-lg disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {equipmentSaving ? 'Salvando...' : editingEquipment ? 'Atualizar Equipamento' : 'Adicionar Equipamento'}
+            </button>
+          </form>
+
+          {equipmentList.length > 0 ? (
+            <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+              {equipmentList.map((equipment) => (
+                <div
+                  key={equipment.id}
+                  className="flex items-center justify-between gap-3 rounded-xl border-2 border-gray-100 bg-gray-50 px-3 py-2"
+                >
+                  <span className="min-w-0 truncate text-sm font-black text-gray-800">{equipment.name}</span>
+                  <div className="flex flex-shrink-0 gap-1">
+                    <button
+                      type="button"
+                      onClick={() => handleEditEquipment(equipment)}
+                      disabled={isDemo}
+                      className="rounded-lg bg-white p-2 text-primary-700 transition-colors hover:bg-primary-50 disabled:opacity-60"
+                      title="Editar equipamento"
+                    >
+                      <Edit2 size={16} />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleDeleteEquipment(equipment)}
+                      disabled={isDemo}
+                      className="rounded-lg bg-white p-2 text-red-700 transition-colors hover:bg-red-50 disabled:opacity-60"
+                      title="Excluir equipamento"
+                    >
+                      <Trash2 size={16} />
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="rounded-xl border-2 border-dashed border-gray-200 bg-gray-50 p-6 text-center text-sm font-semibold text-gray-500">
+              Nenhum equipamento cadastrado.
+            </div>
+          )}
+        </section>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6" data-tour="admin-salas-lista">
           {rooms.map((room) => (
@@ -216,7 +398,7 @@ export default function GerenciarSalasPage() {
 
               <div className="space-y-3 text-sm text-gray-600 mb-4">
                 <div className="flex items-center gap-2">
-                  <strong className="text-gray-900">Capacidade:</strong> {room.capacity} pessoas
+                  <strong className="text-gray-900">Capacidade:</strong> {room.capacity ? `${room.capacity} pessoas` : 'Não informada'}
                 </div>
                 <div className="flex items-center gap-2">
                   <MapPin size={16} className="text-primary-500" />
@@ -312,13 +494,12 @@ export default function GerenciarSalasPage() {
 
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                   <div>
-                    <label className="block text-sm font-bold text-gray-700 mb-2">Capacidade *</label>
+                    <label className="block text-sm font-bold text-gray-700 mb-2">Capacidade (opcional)</label>
                     <input 
                       type="number" 
                       placeholder="40" 
                       value={formData.capacity} 
                       onChange={(e) => setFormData({...formData, capacity: e.target.value})} 
-                      required 
                       min="1"
                       className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-primary-500 focus:ring-4 focus:ring-primary-100 outline-none" 
                     />
@@ -349,7 +530,7 @@ export default function GerenciarSalasPage() {
                 <div>
                   <label className="block text-sm font-bold text-gray-700 mb-2">Equipamentos</label>
                   <div className="flex flex-wrap gap-2 rounded-xl border-2 border-gray-200 bg-gray-50 p-3">
-                    {Array.from(new Set([...EQUIPMENT_OPTIONS, ...formData.equipment])).map((equipment) => {
+                    {Array.from(new Set([...(equipmentList.length > 0 ? equipmentList.map((item) => item.name) : EQUIPMENT_OPTIONS), ...formData.equipment])).map((equipment) => {
                       const selected = formData.equipment.includes(equipment);
 
                       return (

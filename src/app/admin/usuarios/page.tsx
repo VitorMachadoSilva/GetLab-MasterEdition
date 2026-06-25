@@ -4,6 +4,8 @@ import { useEffect, useMemo, useState } from 'react';
 import { useSession } from 'next-auth/react';
 import {
   AlertCircle,
+  ChevronLeft,
+  ChevronRight,
   Edit2,
   Filter,
   Search,
@@ -63,10 +65,18 @@ export default function GerenciarUsuariosPage() {
   const [editingUser, setEditingUser] = useState<User | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [roleFilter, setRoleFilter] = useState<UserRole>('TODOS');
+  const [page, setPage] = useState(1);
   const [formData, setFormData] = useState<UserFormData>(emptyForm);
   const isDemo = session?.user?.role === 'DEMO';
+  const editingOwnAdmin = Boolean(
+    editingUser && editingUser.id === session?.user?.id && editingUser.role === 'ADMIN'
+  );
 
   useEffect(() => { fetchUsers(); }, []);
+
+  useEffect(() => {
+    setPage(1);
+  }, [roleFilter, searchTerm, users.length]);
 
   const fetchUsers = async () => {
     setLoading(true);
@@ -229,6 +239,13 @@ export default function GerenciarUsuariosPage() {
     admins: users.filter((user) => user.role === 'ADMIN').length,
   };
 
+  const pageSize = 10;
+  const pageCount = Math.max(1, Math.ceil(filteredUsers.length / pageSize));
+  const currentPage = Math.min(page, pageCount);
+  const startIndex = (currentPage - 1) * pageSize;
+  const paginatedUsers = filteredUsers.slice(startIndex, startIndex + pageSize);
+  const endIndex = Math.min(startIndex + pageSize, filteredUsers.length);
+
   if (loading) return <LoadingSpinner />;
 
   return (
@@ -295,7 +312,9 @@ export default function GerenciarUsuariosPage() {
             </div>
           </div>
           <p className="mt-3 text-sm font-semibold text-gray-500">
-            Mostrando {filteredUsers.length} de {users.length} usuário(s).
+            {filteredUsers.length > 0
+              ? `Mostrando ${startIndex + 1}-${endIndex} de ${filteredUsers.length} usuário(s) filtrado(s).`
+              : 'Nenhum usuário no filtro atual.'}
           </p>
         </div>
 
@@ -316,7 +335,7 @@ export default function GerenciarUsuariosPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {filteredUsers.map((user) => (
+                    {paginatedUsers.map((user) => (
                       <tr key={user.id} className="border-b hover:bg-gray-50 transition-colors">
                         <td className="px-6 py-4 font-semibold">{user.name}</td>
                         <td className="px-6 py-4 text-sm">{user.email}</td>
@@ -327,7 +346,7 @@ export default function GerenciarUsuariosPage() {
                         <td className="px-6 py-4 text-sm">{user.department || '-'}</td>
                         <td className="px-6 py-4 text-sm font-bold">{user._count?.bookingsCreated || 0}</td>
                         <td className="px-6 py-4">
-                          <UserActions user={user} onEdit={openEditModal} onDelete={handleDelete} />
+                          <UserActions user={user} currentUserId={session?.user?.id} onEdit={openEditModal} onDelete={handleDelete} />
                         </td>
                       </tr>
                     ))}
@@ -337,7 +356,7 @@ export default function GerenciarUsuariosPage() {
             </div>
 
             <div className="grid gap-4 lg:hidden" data-tour="admin-usuarios-lista">
-              {filteredUsers.map((user) => (
+              {paginatedUsers.map((user) => (
                 <div key={user.id} className="rounded-2xl border-2 border-gray-200 bg-white p-5 shadow-sm">
                   <div className="mb-3 flex items-start justify-between gap-3">
                     <div className="min-w-0">
@@ -354,11 +373,20 @@ export default function GerenciarUsuariosPage() {
                   </div>
 
                   <div className="mt-4 border-t border-gray-100 pt-4">
-                    <UserActions user={user} onEdit={openEditModal} onDelete={handleDelete} />
+                    <UserActions user={user} currentUserId={session?.user?.id} onEdit={openEditModal} onDelete={handleDelete} />
                   </div>
                 </div>
               ))}
             </div>
+
+            {filteredUsers.length > pageSize && (
+              <PaginationControls
+                currentPage={currentPage}
+                pageCount={pageCount}
+                onPrevious={() => setPage(Math.max(1, currentPage - 1))}
+                onNext={() => setPage(Math.min(pageCount, currentPage + 1))}
+              />
+            )}
           </>
         ) : (
           <EmptyState
@@ -402,6 +430,7 @@ export default function GerenciarUsuariosPage() {
                   <select
                     value={formData.role}
                     onChange={(e) => setFormData({ ...formData, role: e.target.value as UserFormData['role'] })}
+                    disabled={editingOwnAdmin}
                     className="w-full rounded-xl border-2 border-gray-200 px-4 py-3 outline-none focus:border-primary-500 focus:ring-4 focus:ring-primary-100"
                   >
                     <option value="ALUNO">Aluno</option>
@@ -409,6 +438,11 @@ export default function GerenciarUsuariosPage() {
                     <option value="ADMIN">Administrador</option>
                     <option value="DEMO">Demo</option>
                   </select>
+                  {editingOwnAdmin && (
+                    <p className="mt-2 rounded-xl bg-orange-50 px-3 py-2 text-xs font-bold text-orange-700">
+                      Você não pode remover ou alterar sua própria permissão de administrador.
+                    </p>
+                  )}
                   <RoleHint role={formData.role} />
                 </div>
 
@@ -498,9 +532,52 @@ function MetricCard({
   };
 
   return (
-    <div className={`rounded-xl border-2 p-6 ${toneClasses[tone]}`}>
-      <div className="text-3xl font-black">{value}</div>
-      <div className="text-sm font-semibold opacity-80">{label}</div>
+    <div className={`rounded-xl border-2 p-4 ${toneClasses[tone]}`}>
+      <div className="text-2xl font-black">{value}</div>
+      <div className="text-xs font-bold uppercase opacity-80">{label}</div>
+    </div>
+  );
+}
+
+function PaginationControls({
+  currentPage,
+  pageCount,
+  onPrevious,
+  onNext,
+}: {
+  currentPage: number;
+  pageCount: number;
+  onPrevious: () => void;
+  onNext: () => void;
+}) {
+  return (
+    <div className="mt-4 flex flex-col gap-3 rounded-2xl border-2 border-gray-200 bg-white p-3 sm:flex-row sm:items-center sm:justify-between">
+      <p className="text-sm font-semibold text-gray-600">
+        Página {currentPage} de {pageCount}
+      </p>
+      <div className="inline-flex w-fit items-center justify-center gap-2 rounded-xl border-2 border-gray-200 bg-white p-1">
+        <button
+          type="button"
+          onClick={onPrevious}
+          disabled={currentPage <= 1}
+          className="inline-flex h-9 w-9 items-center justify-center rounded-lg text-gray-700 transition-colors hover:bg-primary-50 disabled:cursor-not-allowed disabled:opacity-40"
+          aria-label="Página anterior"
+        >
+          <ChevronLeft size={18} />
+        </button>
+        <span className="min-w-[92px] px-2 text-center text-sm font-black text-gray-700">
+          {currentPage} / {pageCount}
+        </span>
+        <button
+          type="button"
+          onClick={onNext}
+          disabled={currentPage >= pageCount}
+          className="inline-flex h-9 w-9 items-center justify-center rounded-lg text-gray-700 transition-colors hover:bg-primary-50 disabled:cursor-not-allowed disabled:opacity-40"
+          aria-label="Próxima página"
+        >
+          <ChevronRight size={18} />
+        </button>
+      </div>
     </div>
   );
 }
@@ -546,13 +623,17 @@ function InfoRow({ label, value }: { label: string; value: string }) {
 
 function UserActions({
   user,
+  currentUserId,
   onEdit,
   onDelete,
 }: {
   user: User;
+  currentUserId?: string;
   onEdit: (user: User) => void;
   onDelete: (user: User) => void;
 }) {
+  const isCurrentUser = user.id === currentUserId;
+
   return (
     <div className="flex gap-2">
       <button
@@ -565,8 +646,9 @@ function UserActions({
       </button>
       <button
         onClick={() => onDelete(user)}
-        className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl bg-red-50 px-3 py-2 font-bold text-red-700 transition-colors hover:bg-red-100 lg:flex-none"
-        title="Excluir usuário"
+        disabled={isCurrentUser}
+        className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl bg-red-50 px-3 py-2 font-bold text-red-700 transition-colors hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-50 lg:flex-none"
+        title={isCurrentUser ? 'Você não pode excluir seu próprio usuário' : 'Excluir usuário'}
       >
         <Trash2 size={18} />
         <span className="lg:hidden">Excluir</span>

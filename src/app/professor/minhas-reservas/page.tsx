@@ -1,11 +1,25 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
-import { Calendar, Clock, MapPin, Users, XCircle, RefreshCw, Filter } from 'lucide-react';
+import {
+  ArrowDownUp,
+  Calendar,
+  ChevronLeft,
+  ChevronRight,
+  Clock,
+  MapPin,
+  RefreshCw,
+  Users,
+  XCircle,
+} from 'lucide-react';
 import toast from 'react-hot-toast';
+import SelectField from '@/components/SelectField';
 import { readApiError } from '@/lib/api-client';
+
+type BookingStatus = 'TODAS' | 'PENDENTE' | 'APROVADA' | 'REJEITADA' | 'CANCELADA';
+type SortOrder = 'desc' | 'asc';
 
 interface Booking {
   id: string;
@@ -14,7 +28,7 @@ interface Booking {
   endTime: string;
   date: string;
   students: number;
-  status: string;
+  status: Exclude<BookingStatus, 'TODAS'>;
   notes?: string;
   room: {
     id: string;
@@ -31,18 +45,34 @@ interface Booking {
   createdAt: string;
 }
 
+const pageSize = 10;
+
+const statusOptions = [
+  { value: 'TODAS', label: 'Todos os status' },
+  { value: 'PENDENTE', label: 'Pendentes' },
+  { value: 'APROVADA', label: 'Aprovadas' },
+  { value: 'REJEITADA', label: 'Rejeitadas' },
+  { value: 'CANCELADA', label: 'Canceladas' },
+];
+
 export default function MinhasReservasPage() {
   const { data: session } = useSession();
   const router = useRouter();
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState<'TODAS' | 'PENDENTE' | 'APROVADA' | 'REJEITADA' | 'CANCELADA'>('TODAS');
+  const [filter, setFilter] = useState<BookingStatus>('TODAS');
+  const [sortOrder, setSortOrder] = useState<SortOrder>('desc');
+  const [page, setPage] = useState(1);
 
   useEffect(() => {
     if (session?.user?.id) {
       fetchMyBookings();
     }
   }, [session]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [filter, sortOrder, bookings.length]);
 
   const fetchMyBookings = async () => {
     try {
@@ -104,11 +134,11 @@ export default function MinhasReservasPage() {
   const getStatusText = (status: string) => {
     switch (status) {
       case 'PENDENTE':
-        return '⏳ Pendente';
+        return 'Pendente';
       case 'APROVADA':
-        return '✅ Aprovada';
+        return 'Aprovada';
       case 'REJEITADA':
-        return '❌ Rejeitada';
+        return 'Rejeitada';
       case 'CANCELADA':
         return 'Cancelada';
       default:
@@ -116,16 +146,30 @@ export default function MinhasReservasPage() {
     }
   };
 
-  const filteredBookings = filter === 'TODAS'
-    ? bookings
-    : bookings.filter(b => b.status === filter);
+  const filteredBookings = useMemo(() => {
+    const filtered = filter === 'TODAS'
+      ? bookings
+      : bookings.filter((booking) => booking.status === filter);
+
+    return [...filtered].sort((a, b) => {
+      const aTime = getBookingSortTime(a);
+      const bTime = getBookingSortTime(b);
+      return sortOrder === 'desc' ? bTime - aTime : aTime - bTime;
+    });
+  }, [bookings, filter, sortOrder]);
+
+  const pageCount = Math.max(1, Math.ceil(filteredBookings.length / pageSize));
+  const currentPage = Math.min(page, pageCount);
+  const startIndex = (currentPage - 1) * pageSize;
+  const pageBookings = filteredBookings.slice(startIndex, startIndex + pageSize);
+  const endIndex = Math.min(startIndex + pageSize, filteredBookings.length);
 
   const stats = {
     total: bookings.length,
-    pendentes: bookings.filter(b => b.status === 'PENDENTE').length,
-    aprovadas: bookings.filter(b => b.status === 'APROVADA').length,
-    rejeitadas: bookings.filter(b => b.status === 'REJEITADA').length,
-    canceladas: bookings.filter(b => b.status === 'CANCELADA').length,
+    pendentes: bookings.filter((booking) => booking.status === 'PENDENTE').length,
+    aprovadas: bookings.filter((booking) => booking.status === 'APROVADA').length,
+    rejeitadas: bookings.filter((booking) => booking.status === 'REJEITADA').length,
+    canceladas: bookings.filter((booking) => booking.status === 'CANCELADA').length,
   };
 
   if (loading) {
@@ -137,19 +181,18 @@ export default function MinhasReservasPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-primary-50 via-white to-secondary-50 p-6">
-      <div className="max-w-7xl mx-auto">
-        {/* Header */}
-        <div className="mb-8" data-tour="minhas-reservas-header">
+    <div className="min-h-screen bg-gradient-to-br from-primary-50 via-white to-secondary-50 p-4 sm:p-6">
+      <div className="mx-auto max-w-7xl animate-fade-in-up">
+        <div className="mb-6" data-tour="minhas-reservas-header">
           <button
             onClick={() => router.push('/dashboard')}
-            className="text-primary-600 hover:text-primary-700 mb-4 flex items-center gap-2"
+            className="mb-4 flex items-center gap-2 text-primary-600 transition-colors hover:text-primary-700"
           >
             ← Voltar ao Dashboard
           </button>
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <h1 className="text-4xl font-bold text-gray-900 mb-2">
+              <h1 className="mb-1 text-3xl font-bold text-gray-900 sm:text-4xl">
                 Minhas Reservas
               </h1>
               <p className="text-gray-600">
@@ -158,168 +201,125 @@ export default function MinhasReservasPage() {
             </div>
             <button
               onClick={() => router.push('/professor/nova-reserva')}
-              className="px-6 py-3 bg-gradient-to-r from-primary-500 to-secondary-500 text-white font-bold rounded-lg hover:shadow-lg transition-all"
+              className="rounded-lg bg-gradient-to-r from-primary-500 to-secondary-500 px-5 py-3 font-bold text-white transition-all hover:shadow-lg"
             >
               + Nova Reserva
             </button>
           </div>
         </div>
 
-        {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-8" data-tour="minhas-reservas-stats">
-          <div className="bg-white rounded-xl p-6 border-2 border-gray-200">
-            <div className="text-3xl font-black text-gray-900">{stats.total}</div>
-            <div className="text-sm text-gray-600 font-medium">Total</div>
-          </div>
-          <div className="bg-yellow-50 rounded-xl p-6 border-2 border-yellow-200">
-            <div className="text-3xl font-black text-yellow-800">{stats.pendentes}</div>
-            <div className="text-sm text-yellow-700 font-medium">Pendentes</div>
-          </div>
-          <div className="bg-green-50 rounded-xl p-6 border-2 border-green-200">
-            <div className="text-3xl font-black text-green-800">{stats.aprovadas}</div>
-            <div className="text-sm text-green-700 font-medium">Aprovadas</div>
-          </div>
-          <div className="bg-red-50 rounded-xl p-6 border-2 border-red-200">
-            <div className="text-3xl font-black text-red-800">{stats.rejeitadas}</div>
-            <div className="text-sm text-red-700 font-medium">Rejeitadas</div>
-          </div>
-          <div className="bg-gray-50 rounded-xl p-6 border-2 border-gray-200">
-            <div className="text-3xl font-black text-gray-800">{stats.canceladas}</div>
-            <div className="text-sm text-gray-700 font-medium">Canceladas</div>
+        <div className="mb-6 grid grid-cols-2 gap-3 md:grid-cols-5" data-tour="minhas-reservas-stats">
+          <StatCard label="Total" value={stats.total} />
+          <StatCard label="Pendentes" value={stats.pendentes} tone="yellow" />
+          <StatCard label="Aprovadas" value={stats.aprovadas} tone="green" />
+          <StatCard label="Rejeitadas" value={stats.rejeitadas} tone="red" />
+          <StatCard label="Canceladas" value={stats.canceladas} tone="gray" />
+        </div>
+
+        <div className="mb-5 rounded-2xl border-2 border-gray-200 bg-white p-3 shadow-sm" data-tour="minhas-reservas-filtros">
+          <div className="grid gap-3 md:grid-cols-[minmax(220px,320px)_auto_1fr] md:items-end">
+            <div>
+              <label className="mb-1 block text-xs font-black uppercase text-gray-500">Status</label>
+              <SelectField
+                value={filter}
+                placeholder="Todos os status"
+                options={statusOptions}
+                compact
+                onChange={(value) => setFilter(value as BookingStatus)}
+              />
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setSortOrder((order) => (order === 'desc' ? 'asc' : 'desc'))}
+              className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border-2 border-gray-200 bg-white px-3 py-2 text-sm font-black text-gray-700 transition-all hover:border-primary-300 hover:bg-primary-50"
+            >
+              <ArrowDownUp size={17} />
+              {sortOrder === 'desc' ? 'Mais recentes primeiro' : 'Mais antigas primeiro'}
+            </button>
+
+            <p className="text-sm font-semibold text-gray-500 md:text-right">
+              {filteredBookings.length > 0
+                ? `Mostrando ${startIndex + 1}-${endIndex} de ${filteredBookings.length} reserva(s).`
+                : 'Nenhuma reserva no filtro atual.'}
+            </p>
           </div>
         </div>
 
-        {/* Filters */}
-        <div className="mb-6 flex flex-wrap items-center gap-3" data-tour="minhas-reservas-filtros">
-          <Filter size={20} className="text-gray-600" />
-          <button
-            onClick={() => setFilter('TODAS')}
-            className={`px-4 py-2 rounded-lg font-semibold transition-colors ${
-              filter === 'TODAS'
-                ? 'bg-primary-500 text-white'
-                : 'bg-white border-2 border-gray-200 text-gray-700 hover:border-primary-300'
-            }`}
-          >
-            Todas
-          </button>
-          <button
-            onClick={() => setFilter('PENDENTE')}
-            className={`px-4 py-2 rounded-lg font-semibold transition-colors ${
-              filter === 'PENDENTE'
-                ? 'bg-yellow-500 text-white'
-                : 'bg-white border-2 border-gray-200 text-gray-700 hover:border-yellow-300'
-            }`}
-          >
-            Pendentes
-          </button>
-          <button
-            onClick={() => setFilter('APROVADA')}
-            className={`px-4 py-2 rounded-lg font-semibold transition-colors ${
-              filter === 'APROVADA'
-                ? 'bg-green-500 text-white'
-                : 'bg-white border-2 border-gray-200 text-gray-700 hover:border-green-300'
-            }`}
-          >
-            Aprovadas
-          </button>
-          <button
-            onClick={() => setFilter('REJEITADA')}
-            className={`px-4 py-2 rounded-lg font-semibold transition-colors ${
-              filter === 'REJEITADA'
-                ? 'bg-red-500 text-white'
-                : 'bg-white border-2 border-gray-200 text-gray-700 hover:border-red-300'
-            }`}
-          >
-            Rejeitadas
-          </button>
-          <button
-            onClick={() => setFilter('CANCELADA')}
-            className={`px-4 py-2 rounded-lg font-semibold transition-colors ${
-              filter === 'CANCELADA'
-                ? 'bg-gray-600 text-white'
-                : 'bg-white border-2 border-gray-200 text-gray-700 hover:border-gray-300'
-            }`}
-          >
-            Canceladas
-          </button>
-        </div>
-
-        {/* Bookings List */}
         {filteredBookings.length > 0 ? (
-          <div className="grid gap-4" data-tour="minhas-reservas-lista">
-            {filteredBookings.map((booking) => (
-              <div
-                key={booking.id}
-                className="bg-white rounded-xl p-6 border-2 border-gray-200 hover:shadow-lg transition-all"
-              >
-                <div className="flex flex-col lg:flex-row justify-between gap-6">
-                  <div className="flex-1">
-                    <div className="flex items-start justify-between mb-4">
-                      <div>
-                        <h3 className="text-2xl font-bold text-gray-900 mb-2">
-                          {booking.course}
-                        </h3>
-                        <div className="flex items-center gap-3">
-                          <span className={`px-3 py-1 rounded-lg text-sm font-bold border ${getStatusColor(booking.status)}`}>
-                            {getStatusText(booking.status)}
-                          </span>
+          <>
+            <div className="grid gap-3" data-tour="minhas-reservas-lista">
+              {pageBookings.map((booking, index) => (
+                <div
+                  key={booking.id}
+                  className="animate-fade-in-up rounded-xl border-2 border-gray-200 bg-white p-4 transition-all hover:border-primary-200 hover:shadow-md"
+                  style={{ animationDelay: `${Math.min(index * 0.04, 0.24)}s` }}
+                >
+                  <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                    <div className="min-w-0 flex-1">
+                      <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                        <div className="min-w-0">
+                          <h3 className="truncate text-lg font-black text-gray-900 sm:text-xl">
+                            {booking.course}
+                          </h3>
+                          <p className="mt-1 text-sm font-semibold text-gray-500">
+                            Solicitada em {formatDate(booking.createdAt)}
+                          </p>
                         </div>
+                        <span className={`w-fit rounded-lg border px-3 py-1 text-xs font-black ${getStatusColor(booking.status)}`}>
+                          {getStatusText(booking.status)}
+                        </span>
                       </div>
+
+                      <div className="grid gap-2 text-sm text-gray-700 sm:grid-cols-2 lg:grid-cols-4">
+                        <InfoItem icon={Calendar} value={formatDate(booking.date)} />
+                        <InfoItem icon={Clock} value={`${booking.startTime} - ${booking.endTime}`} />
+                        <InfoItem icon={MapPin} value={`${booking.room.name} - ${booking.room.building}`} />
+                        <InfoItem icon={Users} value={booking.students ? `${booking.students} alunos` : 'Alunos não informados'} />
+                      </div>
+
+                      {booking.notes && (
+                        <div className="mt-3 rounded-lg bg-gray-50 px-3 py-2">
+                          <p className="line-clamp-2 text-sm text-gray-700">
+                            <strong>Observações:</strong> {booking.notes}
+                          </p>
+                        </div>
+                      )}
                     </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 text-sm">
-                      <div className="flex items-center gap-2 text-gray-700">
-                        <Calendar size={16} className="text-primary-500" />
-                        <span>{new Date(booking.date).toLocaleDateString('pt-BR')}</span>
-                      </div>
-                      <div className="flex items-center gap-2 text-gray-700">
-                        <Clock size={16} className="text-primary-500" />
-                        <span>{booking.startTime} - {booking.endTime}</span>
-                      </div>
-                      <div className="flex items-center gap-2 text-gray-700">
-                        <MapPin size={16} className="text-primary-500" />
-                        <span>{booking.room.name} - {booking.room.building}</span>
-                      </div>
-                      <div className="flex items-center gap-2 text-gray-700">
-                        <Users size={16} className="text-primary-500" />
-                        <span>{booking.students} alunos</span>
-                      </div>
-                    </div>
-
-                    {booking.notes && (
-                      <div className="mt-4 p-3 bg-gray-50 rounded-lg">
-                        <p className="text-sm text-gray-700">
-                          <strong>Observações:</strong> {booking.notes}
-                        </p>
-                      </div>
-                    )}
-                  </div>
-
-                  {booking.status === 'PENDENTE' && (
-                    <div className="flex lg:flex-col gap-2">
+                    {booking.status === 'PENDENTE' && (
                       <button
                         onClick={() => handleCancel(booking.id)}
-                        className="px-4 py-2 bg-red-500 hover:bg-red-600 text-white font-semibold rounded-lg transition-colors flex items-center justify-center gap-2"
+                        className="inline-flex items-center justify-center gap-2 rounded-lg bg-red-500 px-3 py-2 text-sm font-bold text-white transition-colors hover:bg-red-600"
                       >
                         <XCircle size={16} />
                         Cancelar
                       </button>
-                    </div>
-                  )}
+                    )}
+                  </div>
                 </div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+
+            {filteredBookings.length > pageSize && (
+              <PaginationControls
+                currentPage={currentPage}
+                pageCount={pageCount}
+                onPrevious={() => setPage(Math.max(1, currentPage - 1))}
+                onNext={() => setPage(Math.min(pageCount, currentPage + 1))}
+              />
+            )}
+          </>
         ) : (
-          <div className="bg-white rounded-xl p-12 text-center border-2 border-gray-200" data-tour="minhas-reservas-lista">
-            <Calendar size={64} className="mx-auto mb-4 text-gray-300" />
-            <p className="text-xl text-gray-500 mb-4">
+          <div className="rounded-xl border-2 border-gray-200 bg-white p-10 text-center" data-tour="minhas-reservas-lista">
+            <Calendar size={56} className="mx-auto mb-4 text-gray-300" />
+            <p className="mb-4 text-lg text-gray-500">
               {filter === 'TODAS' ? 'Você ainda não tem reservas' : `Nenhuma reserva ${filter.toLowerCase()}`}
             </p>
             {filter === 'TODAS' && (
               <button
                 onClick={() => router.push('/professor/nova-reserva')}
-                className="px-6 py-3 bg-gradient-to-r from-primary-500 to-secondary-500 text-white font-bold rounded-lg hover:shadow-lg transition-all inline-block"
+                className="inline-block rounded-lg bg-gradient-to-r from-primary-500 to-secondary-500 px-6 py-3 font-bold text-white transition-all hover:shadow-lg"
               >
                 Criar Primeira Reserva
               </button>
@@ -329,4 +329,96 @@ export default function MinhasReservasPage() {
       </div>
     </div>
   );
+}
+
+function StatCard({
+  label,
+  value,
+  tone = 'white',
+}: {
+  label: string;
+  value: number;
+  tone?: 'white' | 'yellow' | 'green' | 'red' | 'gray';
+}) {
+  const classes = {
+    white: 'border-gray-200 bg-white text-gray-900',
+    yellow: 'border-yellow-200 bg-yellow-50 text-yellow-800',
+    green: 'border-green-200 bg-green-50 text-green-800',
+    red: 'border-red-200 bg-red-50 text-red-800',
+    gray: 'border-gray-200 bg-gray-50 text-gray-800',
+  };
+
+  return (
+    <div className={`rounded-xl border-2 p-4 ${classes[tone]}`}>
+      <div className="text-2xl font-black">{value}</div>
+      <div className="text-xs font-bold uppercase opacity-80">{label}</div>
+    </div>
+  );
+}
+
+function InfoItem({
+  icon: Icon,
+  value,
+}: {
+  icon: any;
+  value: string;
+}) {
+  return (
+    <div className="flex min-w-0 items-center gap-2 rounded-lg bg-gray-50 px-3 py-2">
+      <Icon size={15} className="flex-shrink-0 text-primary-500" />
+      <span className="truncate font-semibold">{value}</span>
+    </div>
+  );
+}
+
+function PaginationControls({
+  currentPage,
+  pageCount,
+  onPrevious,
+  onNext,
+}: {
+  currentPage: number;
+  pageCount: number;
+  onPrevious: () => void;
+  onNext: () => void;
+}) {
+  return (
+    <div className="mt-4 flex flex-col gap-3 rounded-2xl border-2 border-gray-200 bg-white p-3 sm:flex-row sm:items-center sm:justify-between">
+      <p className="text-sm font-semibold text-gray-600">
+        Página {currentPage} de {pageCount}
+      </p>
+      <div className="inline-flex w-fit items-center justify-center gap-2 rounded-xl border-2 border-gray-200 bg-white p-1">
+        <button
+          type="button"
+          onClick={onPrevious}
+          disabled={currentPage <= 1}
+          className="inline-flex h-9 w-9 items-center justify-center rounded-lg text-gray-700 transition-colors hover:bg-primary-50 disabled:cursor-not-allowed disabled:opacity-40"
+          aria-label="Página anterior"
+        >
+          <ChevronLeft size={18} />
+        </button>
+        <span className="min-w-[92px] px-2 text-center text-sm font-black text-gray-700">
+          {currentPage} / {pageCount}
+        </span>
+        <button
+          type="button"
+          onClick={onNext}
+          disabled={currentPage >= pageCount}
+          className="inline-flex h-9 w-9 items-center justify-center rounded-lg text-gray-700 transition-colors hover:bg-primary-50 disabled:cursor-not-allowed disabled:opacity-40"
+          aria-label="Próxima página"
+        >
+          <ChevronRight size={18} />
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function getBookingSortTime(booking: Booking) {
+  return new Date(`${booking.date.slice(0, 10)}T${booking.startTime}:00`).getTime();
+}
+
+function formatDate(date: string) {
+  const [year, month, day] = date.slice(0, 10).split('-').map(Number);
+  return new Date(year, month - 1, day).toLocaleDateString('pt-BR');
 }

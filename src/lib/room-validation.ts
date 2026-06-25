@@ -7,7 +7,10 @@ export function parseRoomPayload(body: Record<string, unknown>) {
   const name = cleanString(body.name);
   const type = cleanString(body.type);
   const building = cleanString(body.building) || 'Não informado';
-  const capacity = Number(body.capacity);
+  const capacityText = typeof body.capacity === 'number'
+    ? String(body.capacity)
+    : cleanString(body.capacity);
+  const capacity = capacityText === '' ? null : Number(body.capacity);
   const floorInput = body.floor;
   const floorText = cleanString(floorInput);
   const floor = floorInput === null || floorInput === undefined || floorText === ''
@@ -26,7 +29,7 @@ export function parseRoomPayload(body: Record<string, unknown>) {
     return { ok: false as const, error: 'Tipo de sala inválido' };
   }
 
-  if (!Number.isInteger(capacity) || capacity < 1 || capacity > 500) {
+  if (capacity !== null && (!Number.isInteger(capacity) || capacity < 1 || capacity > 500)) {
     return { ok: false as const, error: 'Capacidade deve ser um número entre 1 e 500' };
   }
 
