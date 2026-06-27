@@ -249,8 +249,8 @@ export default function GerenciarUsuariosPage() {
   if (loading) return <LoadingSpinner />;
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-50 p-4 sm:p-6">
-      <div className="max-w-7xl mx-auto">
+    <div className="min-h-screen overflow-x-hidden bg-gradient-to-br from-blue-50 via-white to-indigo-50 p-4 sm:p-6">
+      <div className="mx-auto w-full max-w-7xl">
         <div className="mb-8 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between" data-tour="admin-usuarios-header">
           <div>
             <h1 className="text-4xl font-black text-gray-900">Gerenciar Usuários</h1>
@@ -355,9 +355,9 @@ export default function GerenciarUsuariosPage() {
               </div>
             </div>
 
-            <div className="grid gap-4 lg:hidden" data-tour="admin-usuarios-lista">
+            <div className="grid min-w-0 gap-4 lg:hidden" data-tour="admin-usuarios-lista">
               {paginatedUsers.map((user) => (
-                <div key={user.id} className="rounded-2xl border-2 border-gray-200 bg-white p-5 shadow-sm">
+                <div key={user.id} className="min-w-0 overflow-hidden rounded-2xl border-2 border-gray-200 bg-white p-5 shadow-sm">
                   <div className="mb-3 flex items-start justify-between gap-3">
                     <div className="min-w-0">
                       <h2 className="truncate text-xl font-black text-gray-900">{user.name}</h2>
@@ -591,7 +591,7 @@ function RoleBadge({ role }: { role: User['role'] }) {
   };
 
   return (
-    <span className={`whitespace-nowrap rounded-lg px-3 py-1 text-xs font-black ${classes[role]}`}>
+    <span className={`shrink-0 whitespace-nowrap rounded-lg px-3 py-1 text-xs font-black ${classes[role]}`}>
       {role}
     </span>
   );
@@ -616,7 +616,7 @@ function InfoRow({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex items-center justify-between gap-3 rounded-xl bg-gray-50 px-3 py-2">
       <span className="text-xs font-black uppercase text-gray-500">{label}</span>
-      <span className="text-right text-sm font-semibold text-gray-800">{value}</span>
+      <span className="min-w-0 break-words text-right text-sm font-semibold text-gray-800">{value}</span>
     </div>
   );
 }

@@ -1,0 +1,293 @@
+ROTEIRO DE APRESENTACAO - GETLAB
+Tempo-alvo: 16 a 18 minutos
+Base do modelo do professor: 7 slides
+
+============================================================
+SLIDE 1 - TITULO
+Tempo sugerido: 1 minuto
+
+Texto no slide:
+GetLab
+Sistema de Reservas de Salas e Laboratorios
+
+Projeto Final de Faculdade
+Membros: [nomes do grupo]
+Orientacao: [nome do orientador]
+
+Fala sugerida:
+Boa [noite/tarde], professor e colegas. Nosso projeto final se chama GetLab.
+Ele e um sistema web desenvolvido para organizar reservas de salas, laboratorios
+e outros ambientes academicos. A ideia principal foi resolver um problema comum
+em instituicoes de ensino: controlar quem pode usar determinado espaco, em qual
+horario, com qual finalidade, evitando conflitos e melhorando a visibilidade das
+reservas para professores, administracao e alunos.
+
+============================================================
+SLIDE 2 - JUSTIFICATIVA / VISAO DO PRODUTO
+Tempo sugerido: 2 a 3 minutos
+
+Texto no slide:
+Problema
+- Reservas feitas de forma manual ou descentralizada
+- Risco de conflito de horarios
+- Falta de visibilidade sobre salas ocupadas e disponiveis
+- Dificuldade para aprovar, acompanhar e consultar historico
+
+Visao do produto
+- Centralizar solicitacoes de reserva
+- Automatizar validacoes importantes
+- Apoiar a decisao administrativa
+- Exibir a agenda de reservas de forma simples e publica
+
+Fala sugerida:
+A justificativa do GetLab vem de um cenario bem pratico. Em muitas instituicoes,
+reservas de laboratorio ou sala acabam acontecendo por mensagens, planilhas,
+conversas presenciais ou controles separados. Isso gera alguns problemas:
+duas pessoas podem pedir o mesmo espaco no mesmo horario, a administracao pode
+ter dificuldade para acompanhar pendencias, e os alunos ou professores nem sempre
+conseguem saber rapidamente qual sala esta ocupada.
+
+O GetLab foi pensado como um produto para centralizar esse fluxo. O professor
+solicita a reserva, o sistema valida regras como antecedencia, duracao, capacidade
+e conflito de horario, e o administrador aprova ou rejeita. Alem disso, existe um
+display publico para mostrar as reservas aprovadas do dia, pensado para telas ou
+monitores da instituicao.
+
+============================================================
+SLIDE 3 - OBJETIVOS
+Tempo sugerido: 2 minutos
+
+Texto no slide:
+Objetivo geral
+Desenvolver um sistema web para gerenciar reservas academicas de ambientes,
+com controle de acesso, validacoes de negocio e acompanhamento administrativo.
+
+Objetivos especificos
+- Permitir login por perfil: aluno, professor, administrador e demo
+- Permitir solicitacao de reserva por professores
+- Validar antecedencia, duracao, capacidade e conflitos
+- Permitir aprovacao e rejeicao de reservas pelo administrador
+- Gerenciar usuarios, alunos, salas e equipamentos
+- Disponibilizar dashboard e display publico das reservas
+- Melhorar a experiencia com feedback visual, mensagens claras e responsividade
+
+Fala sugerida:
+O objetivo geral foi desenvolver uma aplicacao web completa para gerenciar
+reservas academicas. Nao era apenas criar uma tela de cadastro, mas sim um fluxo
+com regras e responsabilidades diferentes.
+
+Nos objetivos especificos, definimos quatro pontos principais: primeiro, controlar
+o acesso por perfil; segundo, permitir que professores criem solicitacoes; terceiro,
+garantir regras de negocio no front-end e na API; e quarto, oferecer para o
+administrador uma area de gestao das reservas, salas, usuarios e relatorios.
+
+Tambem colocamos bastante foco na experiencia de uso: mensagens claras, bloqueio
+de acoes invalidas, visual responsivo e um display publico para consulta rapida.
+
+============================================================
+SLIDE 4 - FUNDAMENTACAO
+Tempo sugerido: 2 minutos
+
+Texto no slide:
+Base conceitual
+- Gestao de recursos academicos compartilhados
+- Controle de acesso baseado em perfil
+- Sistemas web responsivos
+- Validacao de regras de negocio no cliente e no servidor
+- Persistencia de dados com ORM e banco relacional
+
+Conceitos aplicados
+- Autenticacao e sessao
+- CRUD administrativo
+- API REST
+- Modelagem de usuarios, salas, equipamentos, notificacoes e reservas
+- Testes E2E, API e validacoes visuais
+
+Fala sugerida:
+Na fundamentacao, o projeto se apoia em conceitos de sistemas de informacao para
+gestao de recursos compartilhados. Como salas e laboratorios sao recursos limitados,
+o sistema precisa garantir organizacao, rastreabilidade e regras claras.
+
+Tambem aplicamos controle de acesso baseado em perfil. Um aluno pode visualizar
+informacoes permitidas, um professor pode solicitar reservas, e um administrador
+tem acesso a gestao e aprovacao. Outro ponto importante foi validar regras tanto
+na interface quanto no servidor, porque a interface melhora a experiencia, mas a
+API precisa garantir a integridade dos dados.
+
+Tecnicamente, usamos uma arquitetura web com Next.js, React, TypeScript, Prisma,
+NextAuth, Tailwind CSS e banco PostgreSQL via Neon.
+
+============================================================
+SLIDE 5 - METODOLOGIA
+Tempo sugerido: 2 a 3 minutos
+
+Texto no slide:
+Fluxo das atividades
+1. Levantamento do problema e regras de negocio
+2. Definicao dos perfis de usuario
+3. Modelagem do banco de dados
+4. Desenvolvimento das telas e APIs
+5. Implementacao das validacoes
+6. Testes de fluxo, API e responsividade
+7. Ajustes de experiencia e preparacao da demonstracao
+
+Fluxo principal do sistema
+Professor solicita -> Sistema valida -> Reserva fica pendente -> Admin aprova/rejeita
+-> Agenda e display publico exibem reservas aprovadas
+
+Fala sugerida:
+A metodologia foi iterativa. Primeiro organizamos o problema e as principais
+regras: quem pode reservar, quais horarios sao validos, como evitar conflitos e
+quem decide uma solicitacao. Depois modelamos os dados principais: usuarios,
+salas, equipamentos, notificacoes e reservas.
+
+Em seguida, implementamos as telas e APIs. O desenvolvimento foi dividido por
+fluxos: autenticacao, dashboard, nova reserva, minhas reservas, painel admin,
+gestao de salas, gestao de usuarios, alunos, relatorios e display publico.
+
+Por fim, criamos uma estrategia de testes com Playwright, contemplando rotas
+privadas, autorizacao por perfil, criacao de reserva, aprovacao, rejeicao,
+display publico, API e responsividade.
+
+============================================================
+SLIDE 6 - DESENVOLVIMENTO
+Tempo sugerido: 5 a 6 minutos
+
+Texto no slide:
+Arquitetura e tecnologias
+- Next.js 14 + React + TypeScript
+- Tailwind CSS + Lucide Icons
+- NextAuth para autenticacao
+- Prisma ORM
+- PostgreSQL/Neon
+- Playwright para testes
+
+Principais modulos
+- Login e controle de sessao
+- Dashboard de reservas
+- Nova solicitacao de reserva
+- Minhas reservas
+- Painel administrativo
+- Usuarios, alunos, salas e equipamentos
+- Relatorios
+- Display publico
+
+Regras implementadas
+- Minimo de 24h de antecedencia
+- Duracao minima de 1 hora
+- Horario permitido entre 07:00 e 22:00
+- Bloqueio de conflito com reservas pendentes ou aprovadas
+- Validacao de capacidade da sala
+- Reserva de professor nasce pendente
+- Reserva de administrador pode ser aprovada automaticamente
+
+Gestao Produto / Empreendedorismo
+- Publico-alvo: instituicoes de ensino
+- Valor entregue: reducao de conflitos e centralizacao do processo
+- Beneficiarios: professores, administracao e alunos
+- Diferencial: fluxo completo com aprovacao, painel administrativo e display publico
+
+Demonstracao sugerida:
+1. Entrar no login
+2. Mostrar dashboard
+3. Fazer login como professor
+4. Criar uma solicitacao de reserva
+5. Mostrar validacoes de horario/capacidade/conflito
+6. Abrir "Minhas Reservas"
+7. Entrar como administrador
+8. Aprovar ou rejeitar uma solicitacao
+9. Mostrar gestao de salas/usuarios
+10. Abrir display publico
+
+Fala sugerida:
+No desenvolvimento, usamos Next.js com React e TypeScript para construir a
+aplicacao web. A interface foi feita com Tailwind CSS e icones Lucide. Para
+autenticacao, usamos NextAuth com credenciais institucionais, incluindo perfis
+como aluno, professor, admin e demo. Para persistencia, usamos Prisma como ORM
+e PostgreSQL via Neon.
+
+O banco foi modelado com entidades principais: User, Room, Equipment,
+Notification e Booking. A reserva guarda curso ou evento, data, horario inicial,
+horario final, quantidade de alunos, observacoes, sala, professor e status.
+
+As regras de negocio sao uma parte central do projeto. Uma reserva precisa ter
+no minimo 24 horas de antecedencia, pelo menos uma hora de duracao, estar dentro
+do horario permitido e nao pode conflitar com outra reserva pendente ou aprovada.
+Tambem existe validacao de capacidade: se a sala comporta 30 alunos, o sistema
+nao permite uma reserva para uma quantidade maior.
+
+Do ponto de vista de produto, o GetLab atende uma dor institucional real. Ele
+organiza um processo que normalmente fica espalhado, reduz retrabalho e da mais
+transparencia. A administracao consegue acompanhar pendencias e historico; os
+professores conseguem solicitar e acompanhar; e o display publico facilita a
+consulta das reservas aprovadas do dia.
+
+Durante a demonstracao, o ideal e mostrar o sistema funcionando e nao apenas
+descrever. Comecamos pelo login, passamos pelo fluxo do professor criando uma
+reserva, mostramos uma validacao, depois entramos como admin para aprovar ou
+rejeitar e finalizamos com o display publico.
+
+============================================================
+SLIDE 7 - CONSIDERACOES FINAIS / TRABALHOS FUTUROS
+Tempo sugerido: 2 a 3 minutos
+
+Texto no slide:
+Resultados alcancados
+- Sistema funcional para reservas academicas
+- Controle de acesso por perfil
+- Regras de negocio aplicadas na interface e na API
+- Painel administrativo para decisao e gestao
+- Display publico para visibilidade das reservas
+- Base de testes automatizados e validacoes visuais
+
+Trabalhos futuros
+- Relatorios gerenciais mais avancados
+- Aprovadores por curso
+- Integracao com calendario institucional
+- Notificacoes por e-mail ou WhatsApp
+- Auditoria detalhada das acoes
+- Deploy definitivo em producao
+- Melhorias de acessibilidade e usabilidade
+
+Fala sugerida:
+Como resultado, entregamos um sistema funcional que cobre o ciclo principal de
+reservas academicas: solicitacao, validacao, aprovacao, acompanhamento e exibicao
+publica. O projeto tambem inclui gestao administrativa e uma base de testes para
+dar mais confianca aos fluxos principais.
+
+Como trabalhos futuros, existem evolucoes naturais: relatorios mais avancados,
+aprovadores por curso, integracao com calendario institucional, notificacoes por
+e-mail ou WhatsApp, auditoria detalhada e um deploy final em producao.
+
+Concluindo, o GetLab mostra como uma aplicacao web pode resolver um problema
+pratico da rotina academica, trazendo organizacao, controle e transparencia para
+o uso de salas e laboratorios.
+
+============================================================
+DIVISAO DE TEMPO RECOMENDADA
+
+Slide 1: 1 min
+Slide 2: 2 a 3 min
+Slide 3: 2 min
+Slide 4: 2 min
+Slide 5: 2 a 3 min
+Slide 6: 5 a 6 min
+Slide 7: 2 a 3 min
+
+Total estimado: 16 a 20 min
+
+============================================================
+VERSAO CURTA PARA NAO PASSAR DE 15 MIN
+
+Se o tempo apertar:
+- Reduzir a fundamentacao para 1 minuto.
+- Fazer metodologia em 1 minuto e meio.
+- Demonstrar apenas: login, nova reserva, admin aprova, display publico.
+- Deixar gestao de usuarios/salas e testes como comentario rapido.
+
+============================================================
+FRASE DE FECHAMENTO
+
+O GetLab centraliza o processo de reservas academicas, reduz conflitos de horario
+e melhora a visibilidade do uso dos ambientes da instituicao, entregando valor
+para professores, administradores e alunos.

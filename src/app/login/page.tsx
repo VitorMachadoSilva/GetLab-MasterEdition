@@ -104,9 +104,9 @@ export default function LoginPage() {
 
           
           <h1 className="text-5xl font-black text-white mb-3 tracking-tight">
-            Sistema de Reservas
+            GetLab
           </h1>
-          <p className="text-xl font-semibold text-white/90">FMPSC - Faculdade Municipal</p>
+          <p className="text-xl font-semibold text-white/90">FMP - Faculdade Municipal de Palhoça</p>
         </div>
 
         {/* Login Card */}
