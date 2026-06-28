@@ -41,6 +41,7 @@ export default function Navbar() {
   const [adminMenuOpen, setAdminMenuOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [notificationUnreadCount, setNotificationUnreadCount] = useState(0);
   const desktopAdminRef = useRef<HTMLDivElement>(null);
   const mobileAdminRef = useRef<HTMLDivElement>(null);
   const desktopNotificationsRef = useRef<HTMLDivElement>(null);
@@ -120,14 +121,16 @@ export default function Navbar() {
     { href: '/admin/salas', icon: MapPin, label: 'Salas', tour: 'salas' },
     { href: '/admin/relatorios', icon: FileBarChart, label: 'Relatórios', tour: 'relatorios' },
   ];
-  const unreadCount = notifications.filter((notification) => !notification.read).length;
+  const unreadCount = notificationUnreadCount;
 
   const fetchNotifications = async () => {
     try {
-      const res = await fetch('/api/notifications');
+      const res = await fetch('/api/notifications?paginated=true&limit=20');
 
       if (res.ok) {
-        setNotifications(await res.json());
+        const payload = await res.json();
+        setNotifications(payload.data || []);
+        setNotificationUnreadCount(payload.unreadCount || 0);
       }
     } catch (error) {
       // Mantém o menu silencioso se a conexão oscilar.
@@ -142,6 +145,7 @@ export default function Navbar() {
         setNotifications((current) =>
           current.map((notification) => ({ ...notification, read: true }))
         );
+        setNotificationUnreadCount(0);
       } else {
         toast.error(await readApiError(res, 'Não foi possível marcar notificações como lidas'));
       }
@@ -158,6 +162,10 @@ export default function Navbar() {
         setNotifications((current) =>
           current.filter((notification) => notification.id !== notificationId)
         );
+        setNotificationUnreadCount((current) => {
+          const deleted = notifications.find((notification) => notification.id === notificationId);
+          return deleted && !deleted.read ? Math.max(0, current - 1) : current;
+        });
       } else {
         toast.error(await readApiError(res, 'Não foi possível remover a notificação'));
       }

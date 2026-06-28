@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import {
@@ -45,6 +45,17 @@ interface Booking {
   createdAt: string;
 }
 
+type PaginatedBookingsResponse = {
+  data: Booking[];
+  total: number;
+  page: number;
+  pageCount: number;
+  summary?: {
+    total: number;
+    byStatus: Record<string, number>;
+  };
+};
+
 const pageSize = 10;
 
 const statusOptions = [
@@ -63,23 +74,41 @@ export default function MinhasReservasPage() {
   const [filter, setFilter] = useState<BookingStatus>('TODAS');
   const [sortOrder, setSortOrder] = useState<SortOrder>('desc');
   const [page, setPage] = useState(1);
+  const [totalBookings, setTotalBookings] = useState(0);
+  const [pageCount, setPageCount] = useState(1);
+  const [statusSummary, setStatusSummary] = useState<Record<string, number>>({});
 
   useEffect(() => {
     if (session?.user?.id) {
       fetchMyBookings();
     }
-  }, [session]);
+  }, [session?.user?.id, page, filter, sortOrder]);
 
   useEffect(() => {
     setPage(1);
-  }, [filter, sortOrder, bookings.length]);
+  }, [filter, sortOrder]);
 
   const fetchMyBookings = async () => {
     try {
-      const res = await fetch(`/api/bookings?professorId=${session?.user?.id}`);
+      const params = new URLSearchParams({
+        professorId: session?.user?.id || '',
+        paginated: 'true',
+        page: String(page),
+        limit: String(pageSize),
+        sort: sortOrder,
+      });
+
+      if (filter !== 'TODAS') {
+        params.set('status', filter);
+      }
+
+      const res = await fetch(`/api/bookings?${params.toString()}`);
       if (res.ok) {
-        const data = await res.json();
-        setBookings(data);
+        const payload = (await res.json()) as PaginatedBookingsResponse;
+        setBookings(payload.data);
+        setTotalBookings(payload.total);
+        setPageCount(payload.pageCount);
+        setStatusSummary(payload.summary?.byStatus || {});
       } else {
         toast.error(await readApiError(res, 'Não foi possível carregar suas reservas'));
       }
@@ -146,30 +175,17 @@ export default function MinhasReservasPage() {
     }
   };
 
-  const filteredBookings = useMemo(() => {
-    const filtered = filter === 'TODAS'
-      ? bookings
-      : bookings.filter((booking) => booking.status === filter);
-
-    return [...filtered].sort((a, b) => {
-      const aTime = getBookingSortTime(a);
-      const bTime = getBookingSortTime(b);
-      return sortOrder === 'desc' ? bTime - aTime : aTime - bTime;
-    });
-  }, [bookings, filter, sortOrder]);
-
-  const pageCount = Math.max(1, Math.ceil(filteredBookings.length / pageSize));
   const currentPage = Math.min(page, pageCount);
   const startIndex = (currentPage - 1) * pageSize;
-  const pageBookings = filteredBookings.slice(startIndex, startIndex + pageSize);
-  const endIndex = Math.min(startIndex + pageSize, filteredBookings.length);
+  const pageBookings = bookings;
+  const endIndex = Math.min(startIndex + bookings.length, totalBookings);
 
   const stats = {
-    total: bookings.length,
-    pendentes: bookings.filter((booking) => booking.status === 'PENDENTE').length,
-    aprovadas: bookings.filter((booking) => booking.status === 'APROVADA').length,
-    rejeitadas: bookings.filter((booking) => booking.status === 'REJEITADA').length,
-    canceladas: bookings.filter((booking) => booking.status === 'CANCELADA').length,
+    total: Object.values(statusSummary).reduce((sum, value) => sum + value, 0),
+    pendentes: statusSummary.PENDENTE || 0,
+    aprovadas: statusSummary.APROVADA || 0,
+    rejeitadas: statusSummary.REJEITADA || 0,
+    canceladas: statusSummary.CANCELADA || 0,
   };
 
   if (loading) {
@@ -239,14 +255,14 @@ export default function MinhasReservasPage() {
             </button>
 
             <p className="text-sm font-semibold text-gray-500 md:text-right">
-              {filteredBookings.length > 0
-                ? `Mostrando ${startIndex + 1}-${endIndex} de ${filteredBookings.length} reserva(s).`
+              {totalBookings > 0
+                ? `Mostrando ${startIndex + 1}-${endIndex} de ${totalBookings} reserva(s).`
                 : 'Nenhuma reserva no filtro atual.'}
             </p>
           </div>
         </div>
 
-        {filteredBookings.length > 0 ? (
+        {totalBookings > 0 ? (
           <>
             <div className="grid gap-3" data-tour="minhas-reservas-lista">
               {pageBookings.map((booking, index) => (
@@ -301,7 +317,7 @@ export default function MinhasReservasPage() {
               ))}
             </div>
 
-            {filteredBookings.length > pageSize && (
+            {totalBookings > pageSize && (
               <PaginationControls
                 currentPage={currentPage}
                 pageCount={pageCount}
@@ -412,10 +428,6 @@ function PaginationControls({
       </div>
     </div>
   );
-}
-
-function getBookingSortTime(booking: Booking) {
-  return new Date(`${booking.date.slice(0, 10)}T${booking.startTime}:00`).getTime();
 }
 
 function formatDate(date: string) {

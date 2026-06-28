@@ -17,8 +17,15 @@ const businessHours = {
 };
 const minimumLeadHours = 24;
 const approvalLimitHours = 2;
+const defaultPageSize = 10;
+const maxPageSize = 100;
 const autoCancelMessage =
   'Cancelamento automático: prazo de aprovação expirado. O administrador tinha até 2 horas antes do início da reserva para aprovar.';
+
+function parsePositiveInt(value: string | null, fallback: number) {
+  const parsed = Number(value);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : fallback;
+}
 
 function parseDateOnly(date: string) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
@@ -129,6 +136,10 @@ export async function GET(request: NextRequest) {
     const professorId = searchParams.get('professorId');
     const roomId = searchParams.get('roomId');
     const publicView = searchParams.get('public') === 'true';
+    const paginated = searchParams.get('paginated') === 'true';
+    const page = parsePositiveInt(searchParams.get('page'), 1);
+    const limit = Math.min(parsePositiveInt(searchParams.get('limit'), defaultPageSize), maxPageSize);
+    const sort = searchParams.get('sort') === 'desc' ? 'desc' : 'asc';
     const session = publicView ? await getServerSession(authOptions) : await getActiveServerSession();
 
     if (!session?.user && !publicView) {
@@ -232,6 +243,75 @@ export async function GET(request: NextRequest) {
       });
 
       return NextResponse.json(bookings);
+    }
+
+    if (paginated) {
+      const statusSummaryWhere = { ...where };
+      delete statusSummaryWhere.status;
+
+      const orderBy = [
+        { date: sort },
+        { startTime: sort },
+      ] as Array<{ date: 'asc' | 'desc' } | { startTime: 'asc' | 'desc' }>;
+
+      const [bookings, total, statusCounts] = await Promise.all([
+        prisma.booking.findMany({
+          where,
+          select: {
+            id: true,
+            course: true,
+            startTime: true,
+            endTime: true,
+            date: true,
+            students: true,
+            notes: true,
+            status: true,
+            createdAt: true,
+            room: {
+              select: {
+                id: true,
+                name: true,
+                type: true,
+                building: true,
+                capacity: true,
+              },
+            },
+            professor: {
+              select: {
+                id: true,
+                name: true,
+                email: true,
+              },
+            },
+          },
+          orderBy,
+          skip: (page - 1) * limit,
+          take: limit,
+        }),
+        prisma.booking.count({ where }),
+        prisma.booking.groupBy({
+          by: ['status'],
+          where: statusSummaryWhere,
+          _count: {
+            _all: true,
+          },
+        }),
+      ]);
+
+      return NextResponse.json({
+        data: bookings,
+        total,
+        page,
+        limit,
+        pageCount: Math.max(1, Math.ceil(total / limit)),
+        summary: {
+          total: statusCounts.reduce((sum, item) => sum + item._count._all, 0),
+          byStatus: statusCounts.reduce<Record<string, number>>((acc, item) => {
+            acc[item.status] = item._count._all;
+            return acc;
+          }, {}),
+        },
+      });
     }
 
     const bookings = await prisma.booking.findMany({

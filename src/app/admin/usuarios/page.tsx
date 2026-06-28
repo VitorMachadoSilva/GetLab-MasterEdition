@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useSession } from 'next-auth/react';
 import {
   AlertCircle,
@@ -40,6 +40,17 @@ type UserFormData = {
   department: string;
 };
 
+type PaginatedUsersResponse = {
+  data: User[];
+  total: number;
+  page: number;
+  pageCount: number;
+  summary?: {
+    total: number;
+    byRole: Record<string, number>;
+  };
+};
+
 const roleOptions: Array<{ value: UserRole; label: string }> = [
   { value: 'TODOS', label: 'Todos' },
   { value: 'PROFESSOR', label: 'Professores' },
@@ -64,26 +75,56 @@ export default function GerenciarUsuariosPage() {
   const [showModal, setShowModal] = useState(false);
   const [editingUser, setEditingUser] = useState<User | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
+  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
   const [roleFilter, setRoleFilter] = useState<UserRole>('TODOS');
   const [page, setPage] = useState(1);
+  const [totalUsers, setTotalUsers] = useState(0);
+  const [pageCount, setPageCount] = useState(1);
+  const [summary, setSummary] = useState<Record<string, number>>({});
   const [formData, setFormData] = useState<UserFormData>(emptyForm);
   const isDemo = session?.user?.role === 'DEMO';
   const editingOwnAdmin = Boolean(
     editingUser && editingUser.id === session?.user?.id && editingUser.role === 'ADMIN'
   );
 
-  useEffect(() => { fetchUsers(); }, []);
+  useEffect(() => {
+    const timer = window.setTimeout(() => setDebouncedSearchTerm(searchTerm), 300);
+    return () => window.clearTimeout(timer);
+  }, [searchTerm]);
+
+  useEffect(() => {
+    fetchUsers();
+  }, [page, roleFilter, debouncedSearchTerm]);
 
   useEffect(() => {
     setPage(1);
-  }, [roleFilter, searchTerm, users.length]);
+  }, [roleFilter, debouncedSearchTerm]);
 
   const fetchUsers = async () => {
     setLoading(true);
     try {
-      const res = await fetch('/api/users');
+      const params = new URLSearchParams({
+        paginated: 'true',
+        page: String(page),
+        limit: '10',
+      });
+
+      if (roleFilter !== 'TODOS') {
+        params.set('role', roleFilter);
+      }
+
+      const search = debouncedSearchTerm.trim();
+      if (search) {
+        params.set('search', search);
+      }
+
+      const res = await fetch(`/api/users?${params.toString()}`);
       if (res.ok) {
-        setUsers(await res.json());
+        const payload = (await res.json()) as PaginatedUsersResponse;
+        setUsers(payload.data);
+        setTotalUsers(payload.total);
+        setPageCount(payload.pageCount);
+        setSummary(payload.summary?.byRole || {});
       } else {
         toast.error(await readApiError(res, 'Não foi possível carregar os usuários'));
       }
@@ -217,34 +258,20 @@ export default function GerenciarUsuariosPage() {
     }
   };
 
-  const filteredUsers = useMemo(() => {
-    const query = searchTerm.trim().toLowerCase();
-
-    return users.filter((user) => {
-      const matchesRole = roleFilter === 'TODOS' || user.role === roleFilter;
-      const matchesSearch = !query ||
-        user.name.toLowerCase().includes(query) ||
-        user.email.toLowerCase().includes(query) ||
-        user.cpf.includes(query) ||
-        (user.department || '').toLowerCase().includes(query);
-
-      return matchesRole && matchesSearch;
-    });
-  }, [users, roleFilter, searchTerm]);
-
   const stats = {
-    total: users.length,
-    professors: users.filter((user) => user.role === 'PROFESSOR').length,
-    students: users.filter((user) => user.role === 'ALUNO').length,
-    admins: users.filter((user) => user.role === 'ADMIN').length,
+    total: summary.ADMIN || summary.PROFESSOR || summary.ALUNO || summary.DEMO
+      ? Object.values(summary).reduce((sum, value) => sum + value, 0)
+      : totalUsers,
+    professors: summary.PROFESSOR || 0,
+    students: summary.ALUNO || 0,
+    admins: summary.ADMIN || 0,
   };
 
   const pageSize = 10;
-  const pageCount = Math.max(1, Math.ceil(filteredUsers.length / pageSize));
   const currentPage = Math.min(page, pageCount);
   const startIndex = (currentPage - 1) * pageSize;
-  const paginatedUsers = filteredUsers.slice(startIndex, startIndex + pageSize);
-  const endIndex = Math.min(startIndex + pageSize, filteredUsers.length);
+  const paginatedUsers = users;
+  const endIndex = Math.min(startIndex + users.length, totalUsers);
 
   if (loading) return <LoadingSpinner />;
 
@@ -312,13 +339,13 @@ export default function GerenciarUsuariosPage() {
             </div>
           </div>
           <p className="mt-3 text-sm font-semibold text-gray-500">
-            {filteredUsers.length > 0
-              ? `Mostrando ${startIndex + 1}-${endIndex} de ${filteredUsers.length} usuário(s) filtrado(s).`
+            {totalUsers > 0
+              ? `Mostrando ${startIndex + 1}-${endIndex} de ${totalUsers} usuário(s) filtrado(s).`
               : 'Nenhum usuário no filtro atual.'}
           </p>
         </div>
 
-        {filteredUsers.length > 0 ? (
+        {totalUsers > 0 ? (
           <>
             <div className="hidden overflow-hidden rounded-2xl border-2 border-gray-200 bg-white shadow-xl lg:block" data-tour="admin-usuarios-lista">
               <div className="overflow-x-auto">
@@ -379,7 +406,7 @@ export default function GerenciarUsuariosPage() {
               ))}
             </div>
 
-            {filteredUsers.length > pageSize && (
+            {totalUsers > pageSize && (
               <PaginationControls
                 currentPage={currentPage}
                 pageCount={pageCount}

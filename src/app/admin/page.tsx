@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useSession } from 'next-auth/react';
 import {
   AlertCircle,
@@ -52,6 +52,28 @@ type User = {
   };
 };
 
+type PaginatedBookingsResponse = {
+  data: Booking[];
+  total: number;
+  page: number;
+  pageCount: number;
+  summary?: {
+    total: number;
+    byStatus: Record<string, number>;
+  };
+};
+
+type PaginatedUsersResponse = {
+  data: User[];
+  total: number;
+  page: number;
+  pageCount: number;
+  summary?: {
+    total: number;
+    byRole: Record<string, number>;
+  };
+};
+
 const statusOptions: Array<{ value: BookingStatus; label: string }> = [
   { value: 'TODAS', label: 'Todas' },
   { value: 'PENDENTE', label: 'Pendentes' },
@@ -69,10 +91,43 @@ const statusClasses = {
 
 const pendingPageSize = 4;
 
+function buildBookingsUrl({
+  page,
+  limit,
+  status,
+  sort,
+}: {
+  page: number;
+  limit: number;
+  status?: BookingStatus;
+  sort: 'asc' | 'desc';
+}) {
+  const params = new URLSearchParams({
+    paginated: 'true',
+    page: String(page),
+    limit: String(limit),
+    sort,
+  });
+
+  if (status && status !== 'TODAS') {
+    params.set('status', status);
+  }
+
+  return `/api/bookings?${params.toString()}`;
+}
+
 export default function AdminPage() {
   const { data: session } = useSession();
   const [bookings, setBookings] = useState<Booking[]>([]);
+  const [pendingBookings, setPendingBookings] = useState<Booking[]>([]);
   const [users, setUsers] = useState<User[]>([]);
+  const [bookingSummary, setBookingSummary] = useState<Record<string, number>>({});
+  const [allBookingsTotal, setAllBookingsTotal] = useState(0);
+  const [allBookingsPageCount, setAllBookingsPageCount] = useState(1);
+  const [pendingBookingsTotal, setPendingBookingsTotal] = useState(0);
+  const [pendingPageCount, setPendingPageCount] = useState(1);
+  const [userSummary, setUserSummary] = useState<Record<string, number>>({});
+  const [totalUsers, setTotalUsers] = useState(0);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [bookingFilter, setBookingFilter] = useState<BookingStatus>('TODAS');
@@ -85,28 +140,55 @@ export default function AdminPage() {
 
   useEffect(() => {
     fetchData();
-  }, []);
+  }, [bookingFilter, allBookingsPage, pendingPage]);
 
   useEffect(() => {
     setAllBookingsPage(1);
-  }, [bookingFilter, bookings.length]);
+  }, [bookingFilter]);
 
   const fetchData = async () => {
     setRefreshing(true);
     try {
       const [bookingsRes, usersRes] = await Promise.all([
-        fetch('/api/bookings'),
-        fetch('/api/users'),
+        fetch(buildBookingsUrl({
+          page: allBookingsPage,
+          limit: 10,
+          status: bookingFilter === 'TODAS' ? undefined : bookingFilter,
+          sort: 'desc',
+        })),
+        fetch('/api/users?paginated=true&page=1&limit=1'),
       ]);
+      const pendingRes = await fetch(buildBookingsUrl({
+        page: pendingPage,
+        limit: pendingPageSize,
+        status: 'PENDENTE',
+        sort: 'asc',
+      }));
 
       if (bookingsRes.ok) {
-        setBookings(await bookingsRes.json());
+        const payload = (await bookingsRes.json()) as PaginatedBookingsResponse;
+        setBookings(payload.data);
+        setAllBookingsTotal(payload.total);
+        setAllBookingsPageCount(payload.pageCount);
+        setBookingSummary(payload.summary?.byStatus || {});
       } else {
         toast.error(await readApiError(bookingsRes, 'Não foi possível carregar as reservas'));
       }
 
+      if (pendingRes.ok) {
+        const payload = (await pendingRes.json()) as PaginatedBookingsResponse;
+        setPendingBookings(payload.data);
+        setPendingBookingsTotal(payload.total);
+        setPendingPageCount(payload.pageCount);
+      } else {
+        toast.error(await readApiError(pendingRes, 'Não foi possível carregar as reservas pendentes'));
+      }
+
       if (usersRes.ok) {
-        setUsers(await usersRes.json());
+        const payload = (await usersRes.json()) as PaginatedUsersResponse;
+        setUsers(payload.data);
+        setTotalUsers(payload.summary?.total ?? payload.total);
+        setUserSummary(payload.summary?.byRole || {});
       } else {
         toast.error(await readApiError(usersRes, 'Não foi possível carregar os usuários'));
       }
@@ -218,56 +300,25 @@ export default function AdminPage() {
     }
   };
 
-  const pendingBookings = useMemo(() => {
-    return bookings
-      .filter((booking) => booking.status === 'PENDENTE')
-      .sort((a, b) => {
-        const dateCompare = new Date(a.date).getTime() - new Date(b.date).getTime();
-        return dateCompare || a.startTime.localeCompare(b.startTime);
-      });
-  }, [bookings]);
-
-  const pendingPageCount = Math.max(1, Math.ceil(pendingBookings.length / pendingPageSize));
   const currentPendingPage = Math.min(pendingPage, pendingPageCount);
   const pendingStartIndex = (currentPendingPage - 1) * pendingPageSize;
-  const pendingPageBookings = pendingBookings.slice(
-    pendingStartIndex,
-    pendingStartIndex + pendingPageSize
-  );
-  const pendingEndIndex = Math.min(pendingStartIndex + pendingPageSize, pendingBookings.length);
-
-  const filteredBookings = useMemo(() => {
-    const list = bookingFilter === 'TODAS'
-      ? bookings
-      : bookings.filter((booking) => booking.status === bookingFilter);
-
-    return [...list].sort((a, b) => {
-      const dateCompare = new Date(b.date).getTime() - new Date(a.date).getTime();
-      return dateCompare || b.startTime.localeCompare(a.startTime);
-    });
-  }, [bookings, bookingFilter]);
+  const pendingPageBookings = pendingBookings;
+  const pendingEndIndex = Math.min(pendingStartIndex + pendingBookings.length, pendingBookingsTotal);
 
   const allBookingsPageSize = 10;
-  const allBookingsPageCount = Math.max(1, Math.ceil(filteredBookings.length / allBookingsPageSize));
   const currentAllBookingsPage = Math.min(allBookingsPage, allBookingsPageCount);
   const allBookingsStartIndex = (currentAllBookingsPage - 1) * allBookingsPageSize;
-  const allBookingsPageItems = filteredBookings.slice(
-    allBookingsStartIndex,
-    allBookingsStartIndex + allBookingsPageSize
-  );
-  const allBookingsEndIndex = Math.min(
-    allBookingsStartIndex + allBookingsPageSize,
-    filteredBookings.length
-  );
+  const allBookingsPageItems = bookings;
+  const allBookingsEndIndex = Math.min(allBookingsStartIndex + bookings.length, allBookingsTotal);
 
   const stats = {
-    totalBookings: bookings.length,
-    pending: pendingBookings.length,
-    approved: bookings.filter((booking) => booking.status === 'APROVADA').length,
-    rejected: bookings.filter((booking) => booking.status === 'REJEITADA').length,
-    totalUsers: users.length,
-    professors: users.filter((user) => user.role === 'PROFESSOR').length,
-    students: users.filter((user) => user.role === 'ALUNO').length,
+    totalBookings: Object.values(bookingSummary).reduce((sum, value) => sum + value, 0),
+    pending: bookingSummary.PENDENTE || 0,
+    approved: bookingSummary.APROVADA || 0,
+    rejected: bookingSummary.REJEITADA || 0,
+    totalUsers,
+    professors: userSummary.PROFESSOR || 0,
+    students: userSummary.ALUNO || 0,
   };
 
   if (loading) {
@@ -322,15 +373,15 @@ export default function AdminPage() {
                   <h2 className="text-2xl font-black text-gray-900">Pendentes de Aprovação</h2>
                   <p className="text-sm text-gray-600">
                     Analise as solicitações novas antes de liberar o ambiente.
-                    {pendingBookings.length > 0 && (
+                    {pendingBookingsTotal > 0 && (
                       <span className="block font-semibold text-gray-700 sm:inline">
-                        {' '}Mostrando {pendingStartIndex + 1}-{pendingEndIndex} de {pendingBookings.length}.
+                        {' '}Mostrando {pendingStartIndex + 1}-{pendingEndIndex} de {pendingBookingsTotal}.
                       </span>
                     )}
                   </p>
                 </div>
                 <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-                  {pendingBookings.length > pendingPageSize && (
+                  {pendingBookingsTotal > pendingPageSize && (
                     <PaginationControls
                       currentPage={currentPendingPage}
                       pageCount={pendingPageCount}
@@ -349,7 +400,7 @@ export default function AdminPage() {
                 </div>
               </div>
 
-              {pendingBookings.length > 0 ? (
+              {pendingBookingsTotal > 0 ? (
                 <>
                   <div className="grid gap-4">
                   {pendingPageBookings.map((booking) => (
@@ -379,7 +430,7 @@ export default function AdminPage() {
                   ))}
                   </div>
 
-                  {pendingBookings.length > pendingPageSize && (
+                  {pendingBookingsTotal > pendingPageSize && (
                     <div className="mt-4 flex flex-col gap-3 rounded-2xl border-2 border-yellow-100 bg-white p-4 sm:flex-row sm:items-center sm:justify-between">
                       <p className="text-sm font-semibold text-gray-600">
                         Página {currentPendingPage} de {pendingPageCount} das solicitações pendentes.
@@ -407,9 +458,9 @@ export default function AdminPage() {
                   <h2 className="text-2xl font-black text-gray-900">Todas as Reservas</h2>
                   <p className="text-sm text-gray-600">
                     Use os filtros para acompanhar o histórico por status.
-                    {filteredBookings.length > 0 && (
+                    {allBookingsTotal > 0 && (
                       <span className="block font-semibold text-gray-700 sm:inline">
-                        {' '}Mostrando {allBookingsStartIndex + 1}-{allBookingsEndIndex} de {filteredBookings.length}.
+                        {' '}Mostrando {allBookingsStartIndex + 1}-{allBookingsEndIndex} de {allBookingsTotal}.
                       </span>
                     )}
                   </p>
@@ -431,7 +482,7 @@ export default function AdminPage() {
                 </div>
               </div>
 
-              {filteredBookings.length > 0 ? (
+              {allBookingsTotal > 0 ? (
                 <div className="overflow-hidden rounded-2xl border-2 border-gray-200 bg-white shadow-sm">
                   <div className="overflow-x-auto">
                     <table className="w-full min-w-[900px]">
@@ -497,7 +548,7 @@ export default function AdminPage() {
                       </tbody>
                     </table>
                   </div>
-                  {filteredBookings.length > allBookingsPageSize && (
+                  {allBookingsTotal > allBookingsPageSize && (
                     <div className="flex flex-col gap-3 border-t border-gray-100 p-4 sm:flex-row sm:items-center sm:justify-between">
                       <p className="text-sm font-semibold text-gray-600">
                         Página {currentAllBookingsPage} de {allBookingsPageCount} do histórico.

@@ -1,6 +1,6 @@
 'use client';
 
-import { ChangeEvent, useEffect, useMemo, useRef, useState } from 'react';
+import { ChangeEvent, useEffect, useRef, useState } from 'react';
 import {
   ChevronLeft,
   ChevronRight,
@@ -28,6 +28,14 @@ type Student = {
   role: string;
   department?: string | null;
   createdAt?: string;
+};
+
+type PaginatedStudentsResponse = {
+  data: Student[];
+  total: number;
+  page: number;
+  pageCount: number;
+  departments?: string[];
 };
 
 const emptyForm = {
@@ -60,22 +68,51 @@ export default function AdminAlunosPage() {
   const [importCourse, setImportCourse] = useState('');
   const [selectedFileName, setSelectedFileName] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
+  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
   const [courseFilter, setCourseFilter] = useState('TODOS');
   const [page, setPage] = useState(1);
+  const [totalStudents, setTotalStudents] = useState(0);
+  const [pageCount, setPageCount] = useState(1);
+  const [availableCourses, setAvailableCourses] = useState<string[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const isDemo = session?.user?.role === 'DEMO';
 
   useEffect(() => {
+    const timer = window.setTimeout(() => setDebouncedSearchTerm(searchTerm), 300);
+    return () => window.clearTimeout(timer);
+  }, [searchTerm]);
+
+  useEffect(() => {
     fetchStudents();
-  }, []);
+  }, [page, courseFilter, debouncedSearchTerm]);
 
   const fetchStudents = async () => {
     setLoading(true);
     try {
-      const res = await fetch('/api/users?role=ALUNO');
+      const params = new URLSearchParams({
+        role: 'ALUNO',
+        paginated: 'true',
+        page: String(page),
+        limit: String(pageSize),
+      });
+
+      if (courseFilter !== 'TODOS') {
+        params.set('department', courseFilter);
+      }
+
+      const search = debouncedSearchTerm.trim();
+      if (search) {
+        params.set('search', search);
+      }
+
+      const res = await fetch(`/api/users?${params.toString()}`);
 
       if (res.ok) {
-        setStudents(await res.json());
+        const payload = (await res.json()) as PaginatedStudentsResponse;
+        setStudents(payload.data);
+        setTotalStudents(payload.total);
+        setPageCount(payload.pageCount);
+        setAvailableCourses(payload.departments || []);
       } else {
         toast.error(await readApiError(res, 'Não foi possível carregar os alunos'));
       }
@@ -86,39 +123,19 @@ export default function AdminAlunosPage() {
     }
   };
 
-  const filteredStudents = useMemo(() => {
-    const query = searchTerm.trim().toLowerCase();
-
-    return students.filter((student) =>
-      (courseFilter === 'TODOS' || (student.department || '') === courseFilter) &&
-      (!query ||
-        student.name.toLowerCase().includes(query) ||
-        student.email.toLowerCase().includes(query) ||
-        student.cpf.includes(query) ||
-        (student.department || '').toLowerCase().includes(query))
-    );
-  }, [courseFilter, searchTerm, students]);
-
-  const courseOptions = useMemo(() => {
-    const courses = Array.from(
-      new Set(students.map((student) => student.department?.trim()).filter(Boolean) as string[])
-    ).sort((a, b) => a.localeCompare(b, 'pt-BR'));
-
-    return [
-      { value: 'TODOS', label: 'Todos os cursos' },
-      ...courses.map((course) => ({ value: course, label: course })),
-    ];
-  }, [students]);
+  const courseOptions = [
+    { value: 'TODOS', label: 'Todos os cursos' },
+    ...availableCourses.map((course) => ({ value: course, label: course })),
+  ];
 
   useEffect(() => {
     setPage(1);
-  }, [courseFilter, searchTerm, students.length]);
+  }, [courseFilter, debouncedSearchTerm]);
 
-  const pageCount = Math.max(1, Math.ceil(filteredStudents.length / pageSize));
   const currentPage = Math.min(page, pageCount);
   const startIndex = (currentPage - 1) * pageSize;
-  const paginatedStudents = filteredStudents.slice(startIndex, startIndex + pageSize);
-  const endIndex = Math.min(startIndex + pageSize, filteredStudents.length);
+  const paginatedStudents = students;
+  const endIndex = Math.min(startIndex + students.length, totalStudents);
 
   const createStudent = async ({
     name,
@@ -544,8 +561,8 @@ export default function AdminAlunosPage() {
             <div>
               <h2 className="text-xl font-black text-gray-900">Alunos Cadastrados</h2>
               <p className="text-sm font-semibold text-gray-500">
-                {filteredStudents.length > 0
-                  ? `Mostrando ${startIndex + 1}-${endIndex} de ${filteredStudents.length} aluno(s)`
+                {totalStudents > 0
+                  ? `Mostrando ${startIndex + 1}-${endIndex} de ${totalStudents} aluno(s)`
                   : 'Nenhum aluno encontrado'}
               </p>
             </div>
@@ -616,7 +633,7 @@ export default function AdminAlunosPage() {
             </table>
           </div>
 
-          {filteredStudents.length > pageSize && (
+          {totalStudents > pageSize && (
             <div className="flex flex-col gap-3 border-t border-gray-100 p-4 sm:flex-row sm:items-center sm:justify-between">
               <p className="text-sm font-semibold text-gray-600">
                 Página {currentPage} de {pageCount}
