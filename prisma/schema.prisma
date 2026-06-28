@@ -48,6 +48,8 @@ model User {
   
   @@index([email])
   @@index([cpf])
+  @@index([role, createdAt])
+  @@index([role, department, createdAt])
   @@map("users")
 }
 
@@ -69,6 +71,7 @@ model Room {
   
   @@index([type])
   @@index([building])
+  @@index([active, name])
   @@map("rooms")
 }
 
@@ -92,6 +95,9 @@ model Notification {
   createdAt     DateTime @default(now())
 
   @@index([createdAt])
+  @@index([targetUserIds], type: Gin)
+  @@index([readBy], type: Gin)
+  @@index([deletedBy], type: Gin)
   @@map("notifications")
 }
 
@@ -124,5 +130,11 @@ model Booking {
   @@index([status])
   @@index([roomId])
   @@index([professorId])
+  @@index([status, date])
+  @@index([status, createdAt])
+  @@index([professorId, date])
+  @@index([professorId, status, date])
+  @@index([roomId, date])
+  @@index([roomId, status, date, startTime, endTime])
   @@map("bookings")
 }
