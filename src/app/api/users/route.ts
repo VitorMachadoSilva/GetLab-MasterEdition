@@ -36,6 +36,9 @@ export async function GET(request: NextRequest) {
     const search = searchParams.get('search')?.trim();
     const department = searchParams.get('department')?.trim();
     const paginated = searchParams.get('paginated') === 'true';
+    const summaryOnly = searchParams.get('summaryOnly') === 'true';
+    const includeSummary = searchParams.get('includeSummary') !== 'false' || summaryOnly;
+    const includeDepartments = searchParams.get('includeDepartments') !== 'false';
     const page = parsePositiveInt(searchParams.get('page'), 1);
     const limit = Math.min(parsePositiveInt(searchParams.get('limit'), defaultPageSize), maxPageSize);
 
@@ -78,39 +81,45 @@ export async function GET(request: NextRequest) {
       },
     };
 
-    if (paginated) {
+    if (paginated || summaryOnly) {
       const [users, total, roleCounts, departments] = await Promise.all([
-        prisma.user.findMany({
-          where,
-          select,
-          orderBy: {
-            createdAt: 'desc',
-          },
-          skip: (page - 1) * limit,
-          take: limit,
-        }),
+        summaryOnly
+          ? Promise.resolve([])
+          : prisma.user.findMany({
+              where,
+              select,
+              orderBy: {
+                createdAt: 'desc',
+              },
+              skip: (page - 1) * limit,
+              take: limit,
+            }),
         prisma.user.count({ where }),
-        prisma.user.groupBy({
-          by: ['role'],
-          _count: {
-            _all: true,
-          },
-        }),
-        prisma.user.findMany({
-          where: {
-            ...(role ? { role: where.role } : {}),
-            department: {
-              not: null,
-            },
-          },
-          select: {
-            department: true,
-          },
-          distinct: ['department'],
-          orderBy: {
-            department: 'asc',
-          },
-        }),
+        includeSummary
+          ? prisma.user.groupBy({
+              by: ['role'],
+              _count: {
+                _all: true,
+              },
+            })
+          : Promise.resolve([]),
+        includeDepartments
+          ? prisma.user.findMany({
+              where: {
+                ...(role ? { role: where.role } : {}),
+                department: {
+                  not: null,
+                },
+              },
+              select: {
+                department: true,
+              },
+              distinct: ['department'],
+              orderBy: {
+                department: 'asc',
+              },
+            })
+          : Promise.resolve([]),
       ]);
 
       return NextResponse.json({
@@ -119,13 +128,17 @@ export async function GET(request: NextRequest) {
         page,
         limit,
         pageCount: Math.max(1, Math.ceil(total / limit)),
-        summary: {
-          total: roleCounts.reduce((sum, item) => sum + item._count._all, 0),
-          byRole: roleCounts.reduce<Record<string, number>>((acc, item) => {
-            acc[item.role] = item._count._all;
-            return acc;
-          }, {}),
-        },
+        ...(includeSummary
+          ? {
+              summary: {
+                total: roleCounts.reduce((sum, item) => sum + item._count._all, 0),
+                byRole: roleCounts.reduce<Record<string, number>>((acc, item) => {
+                  acc[item.role] = item._count._all;
+                  return acc;
+                }, {}),
+              },
+            }
+          : {}),
         departments: departments
           .map((item) => item.department)
           .filter((department): department is string => Boolean(department)),

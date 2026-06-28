@@ -174,6 +174,21 @@ export default function Navbar() {
     }
   };
 
+  const deleteAllNotifications = async () => {
+    try {
+      const res = await fetch('/api/notifications', { method: 'DELETE' });
+
+      if (res.ok) {
+        setNotifications([]);
+        setNotificationUnreadCount(0);
+      } else {
+        toast.error(await readApiError(res, 'Não foi possível remover as notificações'));
+      }
+    } catch (error) {
+      toast.error('Não foi possível remover as notificações.');
+    }
+  };
+
   const handleSignOut = () => {
     setMobileMenuOpen(false);
     signOut({ callbackUrl: '/login' });
@@ -295,6 +310,7 @@ export default function Navbar() {
                 unreadCount={unreadCount}
                 onToggle={() => setNotificationsOpen((open) => !open)}
                 onReadAll={markAllNotificationsRead}
+                onDeleteAll={deleteAllNotifications}
                 onDelete={deleteNotification}
               />
               
@@ -317,6 +333,7 @@ export default function Navbar() {
               unreadCount={unreadCount}
               onToggle={() => setNotificationsOpen((open) => !open)}
               onReadAll={markAllNotificationsRead}
+              onDeleteAll={deleteAllNotifications}
               onDelete={deleteNotification}
               compact
             />
@@ -432,6 +449,7 @@ function NotificationBell({
   unreadCount,
   onToggle,
   onReadAll,
+  onDeleteAll,
   onDelete,
   compact = false,
 }: {
@@ -441,6 +459,7 @@ function NotificationBell({
   unreadCount: number;
   onToggle: () => void;
   onReadAll: () => void;
+  onDeleteAll: () => void;
   onDelete: (notificationId: string) => void;
   compact?: boolean;
 }) {
@@ -472,14 +491,24 @@ function NotificationBell({
                 {unreadCount} não lida{unreadCount === 1 ? '' : 's'}
               </p>
             </div>
-            <button
-              type="button"
-              onClick={onReadAll}
-              disabled={unreadCount === 0}
-              className="rounded-lg bg-primary-50 px-2.5 py-1.5 text-xs font-black text-primary-700 transition-colors hover:bg-primary-100 disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              Ler tudo
-            </button>
+            <div className="flex items-center gap-1.5">
+              <button
+                type="button"
+                onClick={onReadAll}
+                disabled={unreadCount === 0}
+                className="rounded-lg bg-primary-50 px-2.5 py-1.5 text-xs font-black text-primary-700 transition-colors hover:bg-primary-100 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                Ler tudo
+              </button>
+              <button
+                type="button"
+                onClick={onDeleteAll}
+                disabled={notifications.length === 0}
+                className="rounded-lg bg-red-50 px-2.5 py-1.5 text-xs font-black text-red-700 transition-colors hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                Excluir tudo
+              </button>
+            </div>
           </div>
 
           <div className="max-h-72 space-y-1.5 overflow-y-auto pr-1">

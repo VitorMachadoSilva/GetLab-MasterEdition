@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { BarChart3, Download, FileBarChart, Filter, PieChart, RefreshCw, Users } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { LoadingSpinner } from '@/components/Loading';
@@ -11,32 +11,30 @@ type BookingStatus = 'TODAS' | 'PENDENTE' | 'APROVADA' | 'REJEITADA' | 'CANCELAD
 type PeriodFilter = '30' | '60' | '90' | '180' | 'CURRENT_YEAR';
 type ChartType = 'pie' | 'vertical' | 'horizontal';
 
-type Booking = {
-  id: string;
-  course: string;
-  date: string;
-  startTime: string;
-  endTime: string;
-  students: number;
-  status: Exclude<BookingStatus, 'TODAS'>;
-  room: { id: string; name: string; type: string; building: string };
-  professor: { id: string; name: string; email: string };
-};
-
-type Room = {
-  id: string;
-  name: string;
-  type: string;
-  capacity: number | null;
-  building: string;
-  equipment: string[];
-};
-
-type User = {
-  id: string;
-  name: string;
-  email: string;
-  role: string;
+type ReportData = {
+  metrics: {
+    totalBookings: number;
+    approved: number;
+    pending: number;
+    canceled: number;
+    registeredStudents: number;
+    approvalRate: number;
+  };
+  charts: {
+    roomUse: Record<string, number>;
+    statusUse: Record<string, number>;
+    professorUse: Record<string, number>;
+    monthUse: Record<string, number>;
+    roomTypeUse: Record<string, number>;
+  };
+  operational: {
+    rooms: number;
+    users: number;
+    students: number;
+    professors: number;
+    capacity: number;
+    equipment: number;
+  };
 };
 
 const statusOptions = [
@@ -73,9 +71,7 @@ const chartColors = [
 ];
 
 export default function RelatoriosPage() {
-  const [bookings, setBookings] = useState<Booking[]>([]);
-  const [rooms, setRooms] = useState<Room[]>([]);
-  const [users, setUsers] = useState<User[]>([]);
+  const [report, setReport] = useState<ReportData | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [status, setStatus] = useState<BookingStatus>('TODAS');
@@ -83,25 +79,19 @@ export default function RelatoriosPage() {
 
   useEffect(() => {
     fetchData();
-  }, []);
+  }, [period, status]);
 
   const fetchData = async () => {
     setRefreshing(true);
     try {
-      const [bookingsRes, roomsRes, usersRes] = await Promise.all([
-        fetch('/api/bookings'),
-        fetch('/api/rooms'),
-        fetch('/api/users'),
-      ]);
+      const params = new URLSearchParams({ status, period });
+      const response = await fetch(`/api/reports?${params.toString()}`);
 
-      if (bookingsRes.ok) setBookings(await bookingsRes.json());
-      else toast.error(await readApiError(bookingsRes, 'Não foi possível carregar as reservas'));
-
-      if (roomsRes.ok) setRooms(await roomsRes.json());
-      else toast.error(await readApiError(roomsRes, 'Não foi possível carregar as salas'));
-
-      if (usersRes.ok) setUsers(await usersRes.json());
-      else toast.error(await readApiError(usersRes, 'Não foi possível carregar os usuários'));
+      if (response.ok) {
+        setReport(await response.json());
+      } else {
+        toast.error(await readApiError(response, 'Não foi possível carregar os relatórios'));
+      }
     } catch (error) {
       toast.error('Não foi possível carregar os relatórios. Verifique sua conexão e tente novamente.');
     } finally {
@@ -110,68 +100,29 @@ export default function RelatoriosPage() {
     }
   };
 
-  const filteredBookings = useMemo(() => {
-    const periodStart = getPeriodStartDate(period);
+  const exportCsv = async () => {
+    try {
+      const params = new URLSearchParams({ status, period, export: 'csv' });
+      const response = await fetch(`/api/reports?${params.toString()}`);
 
-    return bookings.filter((booking) => {
-      const bookingDate = booking.date.slice(0, 10);
-      const matchesStatus = status === 'TODAS' || booking.status === status;
-      const matchesPeriod = bookingDate >= periodStart;
+      if (!response.ok) {
+        toast.error(await readApiError(response, 'Não foi possível exportar os relatórios'));
+        return;
+      }
 
-      return matchesStatus && matchesPeriod;
-    });
-  }, [bookings, period, status]);
-
-  const metrics = useMemo(() => {
-    const approved = filteredBookings.filter((booking) => booking.status === 'APROVADA');
-    const registeredStudents = users.filter((user) => user.role === 'ALUNO').length;
-    const roomUse = countBy(filteredBookings, (booking) => booking.room.name);
-    const statusUse = countBy(filteredBookings, (booking) => booking.status);
-    const professorUse = countBy(filteredBookings, (booking) => booking.professor.name);
-    const monthUse = countBy(filteredBookings, (booking) => formatMonthKey(booking.date));
-    const roomTypeUse = countBy(filteredBookings, (booking) => getRoomTypeLabel(booking.room.type));
-
-    return {
-      totalBookings: filteredBookings.length,
-      approved: approved.length,
-      pending: filteredBookings.filter((booking) => booking.status === 'PENDENTE').length,
-      canceled: filteredBookings.filter((booking) => booking.status === 'CANCELADA').length,
-      registeredStudents,
-      approvalRate: filteredBookings.length ? Math.round((approved.length / filteredBookings.length) * 100) : 0,
-      roomUse,
-      statusUse,
-      professorUse,
-      monthUse,
-      roomTypeUse,
-    };
-  }, [filteredBookings, users]);
-
-  const exportCsv = () => {
-    const rows = [
-      ['Data', 'Horario', 'Status', 'Disciplina', 'Sala', 'Professor', 'Alunos informados'],
-      ...filteredBookings.map((booking) => [
-        formatDate(booking.date),
-        `${booking.startTime}-${booking.endTime}`,
-        booking.status,
-        booking.course,
-        booking.room.name,
-        booking.professor.name,
-        booking.students ? String(booking.students) : 'Não informado',
-      ]),
-    ];
-    const csv = rows
-      .map((row) => row.map((cell) => `"${cell.replace(/"/g, '""')}"`).join(';'))
-      .join('\n');
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `relatorios-getlab-${new Date().toISOString().slice(0, 10)}.csv`;
-    link.click();
-    URL.revokeObjectURL(url);
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `relatorios-getlab-${new Date().toISOString().slice(0, 10)}.csv`;
+      link.click();
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      toast.error('Não foi possível exportar os relatórios.');
+    }
   };
 
-  if (loading) return <LoadingSpinner />;
+  if (loading || !report) return <LoadingSpinner />;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-50 p-4 sm:p-6">
@@ -235,12 +186,12 @@ export default function RelatoriosPage() {
         </section>
 
         <div className="mb-6 grid gap-4 md:grid-cols-2 xl:grid-cols-6">
-          <Metric label="Reservas" value={metrics.totalBookings} />
-          <Metric label="Aprovadas" value={metrics.approved} tone="green" />
-          <Metric label="Pendentes" value={metrics.pending} tone="yellow" />
-          <Metric label="Canceladas" value={metrics.canceled} tone="gray" />
-          <Metric label="Alunos Cadastrados" value={metrics.registeredStudents} tone="blue" />
-          <Metric label="Aprovação" value={`${metrics.approvalRate}%`} tone="purple" />
+          <Metric label="Reservas" value={report.metrics.totalBookings} />
+          <Metric label="Aprovadas" value={report.metrics.approved} tone="green" />
+          <Metric label="Pendentes" value={report.metrics.pending} tone="yellow" />
+          <Metric label="Canceladas" value={report.metrics.canceled} tone="gray" />
+          <Metric label="Alunos Cadastrados" value={report.metrics.registeredStudents} tone="blue" />
+          <Metric label="Aprovação" value={`${report.metrics.approvalRate}%`} tone="purple" />
         </div>
 
         <section className="mb-6">
@@ -256,16 +207,16 @@ export default function RelatoriosPage() {
             </div>
             <div className="inline-flex items-center gap-2 rounded-xl bg-primary-50 px-3 py-2 text-sm font-black text-primary-700">
               <PieChart size={16} />
-              {filteredBookings.length} reserva(s) filtrada(s)
+              {report.metrics.totalBookings} reserva(s) filtrada(s)
             </div>
           </div>
 
           <div className="grid gap-5 lg:grid-cols-2">
-            <Chart title="Reservas por Status" data={metrics.statusUse} />
-            <Chart title="Uso por Sala" data={metrics.roomUse} />
-            <Chart title="Reservas por Professor" data={metrics.professorUse} />
-            <Chart title="Reservas por Mês" data={metrics.monthUse} />
-            <Chart title="Tipos de Sala" data={metrics.roomTypeUse} />
+            <Chart title="Reservas por Status" data={report.charts.statusUse} />
+            <Chart title="Uso por Sala" data={report.charts.roomUse} />
+            <Chart title="Reservas por Professor" data={report.charts.professorUse} />
+            <Chart title="Reservas por Mês" data={report.charts.monthUse} />
+            <Chart title="Tipos de Sala" data={report.charts.roomTypeUse} />
 
             <section className="rounded-2xl border-2 border-gray-200 bg-white p-5 shadow-sm">
               <h2 className="mb-4 flex items-center gap-2 text-xl font-black text-gray-900">
@@ -273,12 +224,12 @@ export default function RelatoriosPage() {
                 Resumo Operacional
               </h2>
               <div className="grid gap-3 text-sm">
-                <InfoRow label="Salas cadastradas" value={`${rooms.length}`} />
-                <InfoRow label="Usuários cadastrados" value={`${users.length}`} />
-                <InfoRow label="Alunos cadastrados" value={`${metrics.registeredStudents}`} />
-                <InfoRow label="Professores" value={`${users.filter((user) => user.role === 'PROFESSOR').length}`} />
-                <InfoRow label="Capacidade total informada" value={`${rooms.reduce((sum, room) => sum + (room.capacity || 0), 0)} pessoas`} />
-                <InfoRow label="Equipamentos únicos em uso" value={`${new Set(rooms.flatMap((room) => room.equipment || [])).size}`} />
+                <InfoRow label="Salas cadastradas" value={`${report.operational.rooms}`} />
+                <InfoRow label="Usuários cadastrados" value={`${report.operational.users}`} />
+                <InfoRow label="Alunos cadastrados" value={`${report.operational.students}`} />
+                <InfoRow label="Professores" value={`${report.operational.professors}`} />
+                <InfoRow label="Capacidade total informada" value={`${report.operational.capacity} pessoas`} />
+                <InfoRow label="Equipamentos únicos em uso" value={`${report.operational.equipment}`} />
               </div>
             </section>
           </div>
@@ -286,56 +237,6 @@ export default function RelatoriosPage() {
       </div>
     </div>
   );
-}
-
-function countBy<T>(items: T[], getKey: (item: T) => string) {
-  return items.reduce<Record<string, number>>((acc, item) => {
-    const key = getKey(item);
-    acc[key] = (acc[key] || 0) + 1;
-    return acc;
-  }, {});
-}
-
-function getPeriodStartDate(period: PeriodFilter) {
-  const today = new Date();
-
-  if (period === 'CURRENT_YEAR') {
-    return `${today.getFullYear()}-01-01`;
-  }
-
-  const start = new Date(today);
-  start.setDate(today.getDate() - Number(period));
-  return formatDateInputValue(start);
-}
-
-function formatDateInputValue(date: Date) {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const day = String(date.getDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
-}
-
-function formatDate(date: string) {
-  const [year, month, day] = date.slice(0, 10).split('-').map(Number);
-  return new Date(year, month - 1, day).toLocaleDateString('pt-BR');
-}
-
-function formatMonthKey(date: string) {
-  const [year, month] = date.slice(0, 10).split('-').map(Number);
-  return new Date(year, month - 1, 1).toLocaleDateString('pt-BR', {
-    month: 'short',
-    year: 'numeric',
-  });
-}
-
-function getRoomTypeLabel(type: string) {
-  const labels: Record<string, string> = {
-    LABORATORIO: 'Laboratório',
-    SALA_AULA: 'Sala de Aula',
-    AUDITORIO: 'Auditório',
-  };
-
-  return labels[type] || type;
 }
 
 function Metric({

@@ -95,7 +95,7 @@ export async function PATCH(request: NextRequest) {
       return apiError('Não autenticado', { status: 401 });
     }
 
-    const unread = await prisma.notification.findMany({
+    const unreadWhere = {
       where: {
         AND: [
           {
@@ -120,25 +120,60 @@ export async function PATCH(request: NextRequest) {
           },
         ],
       },
-      select: { id: true, readBy: true },
-    });
+    };
 
-    await Promise.all(
-      unread.map((notification) =>
-        prisma.notification.update({
-          where: { id: notification.id },
-          data: {
-            readBy: {
-              set: [...notification.readBy, session.user.id],
-            },
-          },
-        })
-      )
-    );
+    await prisma.notification.updateMany({
+      ...unreadWhere,
+      data: {
+        readBy: {
+          push: session.user.id,
+        },
+      },
+    });
 
     return NextResponse.json({ message: 'Notificações marcadas como lidas' });
   } catch (error) {
     console.error('Erro ao atualizar notificações:', error);
     return apiError('Erro ao atualizar notificações', { status: 500 });
+  }
+}
+
+export async function DELETE(request: NextRequest) {
+  try {
+    const session = await getActiveServerSession();
+
+    if (!session?.user) {
+      return apiError('Não autenticado', { status: 401 });
+    }
+
+    await prisma.notification.updateMany({
+      where: {
+        AND: [
+          {
+            OR: [
+              { targetUserIds: { isEmpty: true } },
+              { targetUserIds: { has: session.user.id } },
+            ],
+          },
+          {
+            NOT: {
+              deletedBy: {
+                has: session.user.id,
+              },
+            },
+          },
+        ],
+      },
+      data: {
+        deletedBy: {
+          push: session.user.id,
+        },
+      },
+    });
+
+    return NextResponse.json({ message: 'Notificações removidas' });
+  } catch (error) {
+    console.error('Erro ao remover notificações:', error);
+    return apiError('Erro ao remover notificações', { status: 500 });
   }
 }

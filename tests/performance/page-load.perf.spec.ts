@@ -31,4 +31,8 @@ test.describe('performance - carregamento de telas administrativas', () => {
   test('abre gerenciamento de alunos dentro do limite', async ({ page }) => {
     await expectFastPageLoad(page, '/admin/alunos');
   });
+
+  test('abre relatorios dentro do limite', async ({ page }) => {
+    await expectFastPageLoad(page, '/admin/relatorios');
+  });
 });

@@ -140,6 +140,7 @@ export async function GET(request: NextRequest) {
     const page = parsePositiveInt(searchParams.get('page'), 1);
     const limit = Math.min(parsePositiveInt(searchParams.get('limit'), defaultPageSize), maxPageSize);
     const sort = searchParams.get('sort') === 'desc' ? 'desc' : 'asc';
+    const includeSummary = searchParams.get('includeSummary') !== 'false';
     const session = publicView ? await getServerSession(authOptions) : await getActiveServerSession();
 
     if (!session?.user && !publicView) {
@@ -289,13 +290,15 @@ export async function GET(request: NextRequest) {
           take: limit,
         }),
         prisma.booking.count({ where }),
-        prisma.booking.groupBy({
-          by: ['status'],
-          where: statusSummaryWhere,
-          _count: {
-            _all: true,
-          },
-        }),
+        includeSummary
+          ? prisma.booking.groupBy({
+              by: ['status'],
+              where: statusSummaryWhere,
+              _count: {
+                _all: true,
+              },
+            })
+          : Promise.resolve([]),
       ]);
 
       return NextResponse.json({
@@ -304,13 +307,17 @@ export async function GET(request: NextRequest) {
         page,
         limit,
         pageCount: Math.max(1, Math.ceil(total / limit)),
-        summary: {
-          total: statusCounts.reduce((sum, item) => sum + item._count._all, 0),
-          byStatus: statusCounts.reduce<Record<string, number>>((acc, item) => {
-            acc[item.status] = item._count._all;
-            return acc;
-          }, {}),
-        },
+        ...(includeSummary
+          ? {
+              summary: {
+                total: statusCounts.reduce((sum, item) => sum + item._count._all, 0),
+                byStatus: statusCounts.reduce<Record<string, number>>((acc, item) => {
+                  acc[item.status] = item._count._all;
+                  return acc;
+                }, {}),
+              },
+            }
+          : {}),
       });
     }
 

@@ -96,11 +96,13 @@ function buildBookingsUrl({
   limit,
   status,
   sort,
+  includeSummary,
 }: {
   page: number;
   limit: number;
   status?: BookingStatus;
   sort: 'asc' | 'desc';
+  includeSummary?: boolean;
 }) {
   const params = new URLSearchParams({
     paginated: 'true',
@@ -111,6 +113,10 @@ function buildBookingsUrl({
 
   if (status && status !== 'TODAS') {
     params.set('status', status);
+  }
+
+  if (includeSummary === false) {
+    params.set('includeSummary', 'false');
   }
 
   return `/api/bookings?${params.toString()}`;
@@ -156,13 +162,14 @@ export default function AdminPage() {
           status: bookingFilter === 'TODAS' ? undefined : bookingFilter,
           sort: 'desc',
         })),
-        fetch('/api/users?paginated=true&page=1&limit=1'),
+        fetch('/api/users?summaryOnly=true&includeDepartments=false'),
       ]);
       const pendingRes = await fetch(buildBookingsUrl({
         page: pendingPage,
         limit: pendingPageSize,
         status: 'PENDENTE',
         sort: 'asc',
+        includeSummary: false,
       }));
 
       if (bookingsRes.ok) {
