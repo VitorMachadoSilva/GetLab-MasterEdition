@@ -12,6 +12,7 @@ import {
   validateName,
 } from '@/lib/user-validation';
 import { canReadAdminViews, demoWriteBlocked, isDemoRole } from '@/lib/demo-access';
+import { createNotification } from '@/lib/notifications';
 
 export async function GET(
   request: NextRequest,
@@ -94,6 +95,7 @@ export async function PATCH(
         email: true,
         cpf: true,
         role: true,
+        department: true,
       },
     });
 
@@ -133,9 +135,22 @@ export async function PATCH(
 
       const nextEmail = body.email !== undefined ? normalizeEmail(body.email) : currentUser.email;
       const emailError = validateEmailForRole(nextEmail, nextRole);
+      const nextDepartment = body.department !== undefined
+        ? updateData.department
+        : currentUser.department;
 
       if (emailError) {
         return apiError(emailError, { status: 400 });
+      }
+
+      if (nextRole === 'ALUNO' && !nextDepartment) {
+        return apiError('Curso é obrigatório para alunos', { status: 400 });
+      }
+
+      if (session.user.id === params.id && nextRole !== 'ADMIN') {
+        return apiError('Você não pode remover sua própria permissão de administrador', {
+          status: 400,
+        });
       }
 
       if (body.role !== undefined) updateData.role = nextRole;
@@ -185,6 +200,12 @@ export async function PATCH(
       },
     });
 
+    await createNotification({
+      title: 'Usuário atualizado',
+      message: `${session.user.name} atualizou o cadastro de ${user.name}.`,
+      type: 'USER',
+    });
+
     return NextResponse.json(user);
   } catch (error) {
     console.error('Erro ao atualizar usuário:', error);
@@ -225,8 +246,14 @@ export async function DELETE(
       return apiError('Usuário não encontrado', { status: 404 });
     }
 
-    await prisma.user.delete({
+    const deletedUser = await prisma.user.delete({
       where: { id: params.id },
+    });
+
+    await createNotification({
+      title: 'Usuário excluído',
+      message: `${session.user.name} excluiu o usuário ${deletedUser.name}.`,
+      type: 'USER',
     });
 
     return NextResponse.json({ message: 'Usuário excluído com sucesso' });

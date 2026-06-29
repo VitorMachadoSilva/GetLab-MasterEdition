@@ -1,0 +1,201 @@
+CONTEUDO DOS SLIDES - GETLAB
+Documento para montagem da apresentacao
+
+============================================================
+SLIDE 1 - TITULO
+
+Texto:
+GetLab
+Sistema de Reservas de Salas e Laboratorios
+
+Projeto Final de Faculdade
+Membros: [nomes do grupo]
+Orientacao: [nome do orientador]
+
+Visual sugerido:
+- Logo/nome GetLab em destaque.
+- Imagem ou screenshot discreto da tela inicial/login do sistema.
+- Fundo simples com as cores do projeto/instituicao.
+
+============================================================
+SLIDE 2 - JUSTIFICATIVA / VISAO DO PRODUTO
+
+Titulo:
+Justificativa e Visao do Produto
+
+Texto:
+Problema
+- Reservas feitas de forma manual ou descentralizada
+- Risco de conflito de horarios
+- Falta de visibilidade sobre salas ocupadas e disponiveis
+- Dificuldade para aprovar, acompanhar e consultar historico
+
+Visao do produto
+- Centralizar solicitacoes de reserva
+- Automatizar validacoes importantes
+- Apoiar a decisao administrativa
+- Exibir a agenda de reservas de forma simples e publica
+
+Visual sugerido:
+- Comparacao simples "Antes x Depois".
+- Antes: planilhas, mensagens, controle manual.
+- Depois: GetLab centralizando reservas, aprovacao e consulta publica.
+
+============================================================
+SLIDE 3 - OBJETIVOS
+
+Titulo:
+Objetivos
+
+Texto:
+Objetivo geral
+Desenvolver um sistema web para gerenciar reservas academicas de ambientes,
+com controle de acesso, validacoes de negocio e acompanhamento administrativo.
+
+Objetivos especificos
+- Permitir login por perfil: aluno, professor, administrador e demo
+- Permitir solicitacao de reserva por professores
+- Validar antecedencia, duracao, capacidade e conflitos
+- Permitir aprovacao e rejeicao de reservas pelo administrador
+- Gerenciar usuarios, alunos, salas e equipamentos
+- Disponibilizar dashboard e display publico das reservas
+- Melhorar a experiencia com feedback visual, mensagens claras e responsividade
+
+Visual sugerido:
+- Lista em blocos ou icones:
+  login, calendario, validacao, aprovacao, usuarios, display.
+
+============================================================
+SLIDE 4 - FUNDAMENTACAO
+
+Titulo:
+Fundamentacao
+
+Texto:
+Base conceitual
+- Gestao de recursos academicos compartilhados
+- Controle de acesso baseado em perfil
+- Sistemas web responsivos
+- Validacao de regras de negocio no cliente e no servidor
+- Persistencia de dados com ORM e banco relacional
+
+Conceitos aplicados
+- Autenticacao e sessao
+- CRUD administrativo
+- API REST
+- Modelagem de usuarios, salas, equipamentos, notificacoes e reservas
+- Testes E2E, API e validacoes visuais
+
+Visual sugerido:
+- Diagrama simples em camadas:
+  Interface Web -> API -> Regras de negocio -> Banco de dados
+- Ou pequenos icones representando usuario, servidor e banco.
+
+============================================================
+SLIDE 5 - METODOLOGIA
+
+Titulo:
+Metodologia
+
+Texto:
+Fluxo das atividades
+1. Levantamento do problema e regras de negocio
+2. Definicao dos perfis de usuario
+3. Modelagem do banco de dados
+4. Desenvolvimento das telas e APIs
+5. Implementacao das validacoes
+6. Testes de fluxo, API e responsividade
+7. Ajustes de experiencia e preparacao da demonstracao
+
+Fluxo principal do sistema
+Professor solicita -> Sistema valida -> Reserva fica pendente -> Admin aprova/rejeita
+-> Agenda e display publico exibem reservas aprovadas
+
+Visual sugerido:
+- Linha do tempo do desenvolvimento.
+- Fluxograma do processo de reserva:
+  Professor -> Sistema -> Administrador -> Agenda/Display.
+
+============================================================
+SLIDE 6 - DESENVOLVIMENTO
+
+Titulo:
+Desenvolvimento
+
+Texto:
+Arquitetura e tecnologias
+- Next.js 14 + React + TypeScript
+- Tailwind CSS + Lucide Icons
+- NextAuth para autenticacao
+- Prisma ORM
+- PostgreSQL/Neon
+- Playwright para testes
+
+Principais modulos
+- Login e controle de sessao
+- Dashboard de reservas
+- Nova solicitacao de reserva
+- Minhas reservas
+- Painel administrativo
+- Usuarios, alunos, salas e equipamentos
+- Relatorios
+- Display publico
+
+Regras implementadas
+- Minimo de 24h de antecedencia
+- Duracao minima de 1 hora
+- Horario permitido entre 07:00 e 22:00
+- Bloqueio de conflito com reservas pendentes ou aprovadas
+- Validacao de capacidade da sala
+- Reserva de professor nasce pendente
+- Reserva de administrador pode ser aprovada automaticamente
+
+Gestao Produto / Empreendedorismo
+- Publico-alvo: instituicoes de ensino
+- Valor entregue: reducao de conflitos e centralizacao do processo
+- Beneficiarios: professores, administracao e alunos
+- Diferencial: fluxo completo com aprovacao, painel administrativo e display publico
+
+Visual sugerido:
+- Screenshot da tela de nova reserva.
+- Screenshot do painel administrativo.
+- Screenshot do display publico.
+- Opcional: diagrama pequeno da arquitetura:
+  Next.js/React -> APIs Next.js -> Prisma -> PostgreSQL/Neon.
+
+Observacao para montagem:
+- Se o slide ficar carregado, dividir em 2 slides:
+  6A - Tecnologias e arquitetura
+  6B - Modulos, regras e demonstracao do sistema
+
+============================================================
+SLIDE 7 - CONSIDERACOES FINAIS / TRABALHOS FUTUROS
+
+Titulo:
+Consideracoes Finais
+
+Texto:
+Resultados alcancados
+- Sistema funcional para reservas academicas
+- Controle de acesso por perfil
+- Regras de negocio aplicadas na interface e na API
+- Painel administrativo para decisao e gestao
+- Display publico para visibilidade das reservas
+- Base de testes automatizados e validacoes visuais
+
+Trabalhos futuros
+- Relatorios gerenciais mais avancados
+- Aprovadores por curso
+- Integracao com calendario institucional
+- Notificacoes por e-mail ou WhatsApp
+- Auditoria detalhada das acoes
+- Deploy definitivo em producao
+- Melhorias de acessibilidade e usabilidade
+
+Frase de fechamento:
+O GetLab centraliza o processo de reservas academicas, reduz conflitos de horario
+e melhora a visibilidade do uso dos ambientes da instituicao.
+
+Visual sugerido:
+- Imagem final do sistema rodando ou montagem com 2 a 3 telas principais.
+- Destaque para a frase de fechamento.

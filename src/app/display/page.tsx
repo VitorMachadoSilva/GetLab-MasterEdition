@@ -106,9 +106,9 @@ export default function DisplayPage() {
 
       <div className="max-w-[1920px] mx-auto">
         {/* Header - MUITO COMPACTO */}
-        <div className="mb-6 text-center animate-fade-in">
-          <div className="inline-block glass-dark px-8 py-4 rounded-2xl mb-4 shadow-lg">
-            <div className="text-5xl font-black text-white tabular-nums mb-1">
+        <div className="mb-4 text-center animate-fade-in">
+          <div className="inline-block glass-dark px-6 py-3 rounded-2xl mb-3 shadow-lg">
+            <div className="text-4xl font-black text-white tabular-nums mb-1">
               {currentTime.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
             </div>
             <div className="text-base font-semibold text-white/80 capitalize">
@@ -116,7 +116,7 @@ export default function DisplayPage() {
             </div>
           </div>
 
-          <h1 className="text-4xl font-black text-white mb-2">
+          <h1 className="text-3xl font-black text-white mb-2">
             📅 Reservas de Hoje
           </h1>
 
@@ -129,7 +129,7 @@ export default function DisplayPage() {
 
         {/* Cards das Aulas - FOCO PRINCIPAL */}
         {bookings.length > 0 ? (
-          <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
             {bookings.map((booking, index) => {
               const isCurrent = isCurrentlyHappening(booking.startTime, booking.endTime);
               const hasPassed = isPast(booking.endTime);
@@ -146,9 +146,9 @@ export default function DisplayPage() {
                   }`}
                   style={{ animationDelay: `${index * 0.05}s` }}
                 >
-                  <div className="p-5 text-white">
+                  <div className="p-4 text-white">
                     {/* Status e Horário */}
-                    <div className="flex items-center justify-between mb-4">
+                    <div className="flex items-center justify-between mb-3">
                       <div className="flex items-center gap-2">
                         {isCurrent && (
                           <>
@@ -165,19 +165,19 @@ export default function DisplayPage() {
                       </div>
                       
                       <div className="text-right">
-                        <div className="text-4xl font-black">{booking.startTime}</div>
+                        <div className="text-3xl font-black">{booking.startTime}</div>
                         <div className="text-sm font-semibold opacity-80">até {booking.endTime}</div>
                       </div>
                     </div>
 
                     {/* Disciplina - DESTAQUE */}
-                    <h2 className="text-2xl font-black mb-4 leading-tight line-clamp-2">
+                    <h2 className="text-xl font-black mb-3 leading-tight line-clamp-2">
                       {booking.course}
                     </h2>
 
                     {/* Informações - COMPACTAS */}
                     <div className="space-y-2">
-                      <div className="glass-dark p-3 rounded-xl">
+                      <div className="glass-dark p-2.5 rounded-xl">
                         <div className="flex items-center gap-2 mb-1">
                           <Users size={18} className="opacity-90 flex-shrink-0" />
                           <div className="text-xs opacity-80 font-semibold">Professor</div>
@@ -186,7 +186,7 @@ export default function DisplayPage() {
                       </div>
 
                       <div className="grid grid-cols-2 gap-2">
-                        <div className="glass-dark p-3 rounded-xl">
+                        <div className="glass-dark p-2.5 rounded-xl">
                           <div className="flex items-center gap-1 mb-1">
                             <MapPin size={16} className="opacity-90 flex-shrink-0" />
                             <div className="text-xs opacity-80 font-semibold">Sala</div>
@@ -195,12 +195,12 @@ export default function DisplayPage() {
                           <div className="text-xs opacity-70 truncate">{booking.room.building}</div>
                         </div>
 
-                        <div className="glass-dark p-3 rounded-xl">
+                        <div className="glass-dark p-2.5 rounded-xl">
                           <div className="flex items-center gap-1 mb-1">
                             <Users size={16} className="opacity-90 flex-shrink-0" />
                             <div className="text-xs opacity-80 font-semibold">Alunos</div>
                           </div>
-                          <div className="text-base font-bold">{booking.students}</div>
+                          <div className="text-base font-bold">{booking.students || 'Não informado'}</div>
                         </div>
                       </div>
                     </div>

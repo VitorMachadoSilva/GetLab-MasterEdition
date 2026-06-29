@@ -4,10 +4,10 @@ import { appPaths } from './paths';
 
 export async function loginAs(page: Page, user: TestUser) {
   await page.goto(appPaths.login);
-  await page.getByLabel(/email institucional/i).fill(user.email);
-  await page.getByLabel(/senha/i).fill(user.password);
+  await page.getByPlaceholder(/seu\.nome@fmpsc\.edu\.br/i).fill(user.email);
+  await page.getByPlaceholder(/seu cpf/i).fill(user.password);
   await page.getByRole('button', { name: /entrar no sistema/i }).click();
-  await expect(page).not.toHaveURL(/\/login/);
+  await expect(page).not.toHaveURL(/\/login/, { timeout: 15_000 });
 }
 
 export async function logout(page: Page) {

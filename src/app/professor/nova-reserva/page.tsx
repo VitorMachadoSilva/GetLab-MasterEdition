@@ -7,12 +7,14 @@ import { Plus, AlertCircle, Calendar, Clock, Users, MapPin, FileText, ChevronDow
 import toast from 'react-hot-toast';
 import { LoadingSpinner } from '@/components/Loading';
 import { readApiError } from '@/lib/api-client';
+import DatePickerButton from '@/components/DatePickerButton';
+import SelectField from '@/components/SelectField';
 
 interface Room {
   id: string;
   name: string;
   type: string;
-  capacity: number;
+  capacity: number | null;
   building: string;
 }
 
@@ -33,6 +35,7 @@ const timeSlots = [
   '13:00', '14:00', '15:00', '16:00', '17:00', '18:00',
   '19:00', '20:00', '21:00', '22:00'
 ];
+const minimumLeadHours = 24;
 
 const startTimeSlots = timeSlots.slice(0, -1);
 const endTimeSlots = timeSlots.slice(1);
@@ -67,6 +70,16 @@ const parseLocalDateInput = (date: string) => {
   const [year, month, day] = date.split('-').map(Number);
   return new Date(year, month - 1, day);
 };
+
+const getBookingDateTime = (date: string, time: string) => {
+  const selectedDate = parseLocalDateInput(date);
+  const [hours, minutes] = time.split(':').map(Number);
+  selectedDate.setHours(hours, minutes, 0, 0);
+  return selectedDate;
+};
+
+const getHoursUntilBooking = (date: string, time: string) =>
+  (getBookingDateTime(date, time).getTime() - Date.now()) / (1000 * 60 * 60);
 
 const isBeforeLocalDate = (date: string, minDate: string) =>
   parseLocalDateInput(date).getTime() < parseLocalDateInput(minDate).getTime();
@@ -112,6 +125,16 @@ const getRoomTypeLabel = (type: string) => {
   }
 };
 
+const getInitialFormData = () => ({
+  roomId: '',
+  course: '',
+  startTime: '',
+  endTime: '',
+  date: getLocalDateInputValue(1),
+  students: '',
+  notes: '',
+});
+
 export default function NovaReservaPage() {
   const { data: session } = useSession();
   const router = useRouter();
@@ -122,15 +145,7 @@ export default function NovaReservaPage() {
   const [submitting, setSubmitting] = useState(false);
   const [roomSelectorOpen, setRoomSelectorOpen] = useState(false);
   const [errors, setErrors] = useState<{[key: string]: string}>({});
-  const [formData, setFormData] = useState({
-    roomId: '',
-    course: '',
-    startTime: '',
-    endTime: '',
-    date: getLocalDateInputValue(1),
-    students: '',
-    notes: '',
-  });
+  const [formData, setFormData] = useState(getInitialFormData);
 
   useEffect(() => {
     fetchRooms();
@@ -206,25 +221,30 @@ export default function NovaReservaPage() {
       toast.error('Selecione uma sala ou laboratório');
     }
 
+    if (!formData.course.trim()) {
+      newErrors.course = 'Informe a disciplina ou evento';
+      toast.error('Informe a disciplina ou evento');
+    }
+
+    if (!formData.startTime) {
+      newErrors.startTime = 'Selecione o horário de início';
+      toast.error('Selecione o horário de início');
+    }
+
+    if (!formData.endTime) {
+      newErrors.endTime = 'Selecione o horário de término';
+      toast.error('Selecione o horário de término');
+    }
+
     // Validação de data/hora: mínimo 24h de antecedência
     if (formData.startTime) {
-      // Criar data no timezone local (sem conversão UTC)
-      const [year, month, day] = formData.date.split('-').map(Number);
-      const selectedDate = new Date(year, month - 1, day);
-      const [startH, startM] = formData.startTime.split(':').map(Number);
-      
-      // Criar data/hora completa da reserva
-      const bookingDateTime = new Date(selectedDate);
-      bookingDateTime.setHours(startH, startM, 0, 0);
-      
-      const now = new Date();
-      const hoursDiff = (bookingDateTime.getTime() - now.getTime()) / (1000 * 60 * 60);
+      const hoursDiff = getHoursUntilBooking(formData.date, formData.startTime);
       
       if (hoursDiff <= 0) {
         newErrors.date = 'Data ou horário já passou';
         newErrors.startTime = 'Data ou horário já passou';
         toast.error('⚠️ Não é possível reservar data ou horário já passado');
-      } else if (session?.user?.role !== 'ADMIN' && hoursDiff < 24) {
+      } else if (hoursDiff < minimumLeadHours) {
         newErrors.date = 'Mínimo 24h de antecedência';
         newErrors.startTime = 'Mínimo 24h de antecedência';
         toast.error('⚠️ A reserva deve ser feita com no mínimo 24 horas de antecedência');
@@ -262,7 +282,7 @@ export default function NovaReservaPage() {
 
     // Validação de capacidade
     const selectedRoom = rooms.find(r => r.id === formData.roomId);
-    if (selectedRoom && formData.students && parseInt(formData.students) > selectedRoom.capacity) {
+    if (selectedRoom?.capacity != null && formData.students && parseInt(formData.students) > selectedRoom.capacity) {
       newErrors.students = `Sala comporta apenas ${selectedRoom.capacity} alunos`;
       toast.error(`⚠️ Sala comporta apenas ${selectedRoom.capacity} alunos`);
     }
@@ -293,7 +313,7 @@ export default function NovaReservaPage() {
       });
 
       if (res.ok) {
-        toast.success('✅ Solicitação de reserva enviada com sucesso!');
+        toast.success(' Solicitação de reserva enviada com sucesso!');
         setTimeout(() => {
           router.push('/professor/minhas-reservas');
         }, 1500);
@@ -313,8 +333,7 @@ export default function NovaReservaPage() {
 
   const selectedRoom = rooms.find(r => r.id === formData.roomId);
   const isDemo = session?.user?.role === 'DEMO';
-  const isAdmin = session?.user?.role === 'ADMIN' || isDemo;
-  const minDate = isAdmin ? getLocalDateInputValue() : getLocalDateInputValue(1);
+  const minDate = getLocalDateInputValue(1);
   const selectedConflicts = getConflictingBookings(formData.startTime, formData.endTime);
   const availabilitySlots = startTimeSlots.map((startTime, index) => ({
     startTime,
@@ -334,6 +353,33 @@ export default function NovaReservaPage() {
   const selectedDuration = formData.startTime && formData.endTime
     ? (timeToMinutes(formData.endTime) - timeToMinutes(formData.startTime)) / 60
     : 0;
+  const isStartTimeTooSoon = (startTime: string) =>
+    getHoursUntilBooking(formData.date, startTime) < minimumLeadHours;
+  const startTimeOptions = startTimeSlots.map((time, index) => {
+    const nextTime = timeSlots[index + 1];
+    const busy = formData.roomId ? isSlotBusy(time, nextTime) : false;
+    const tooSoon = isStartTimeTooSoon(time);
+
+    return {
+      value: time,
+      label: time,
+      disabled: busy || tooSoon,
+      description: tooSoon ? 'Antecedência mínima' : busy ? 'Ocupado' : 'Disponível',
+    };
+  });
+  const endTimeOptions = endTimeSlots.map((time) => {
+    const unavailable = formData.startTime
+      ? time <= formData.startTime ||
+        getConflictingBookings(formData.startTime, time).length > 0
+      : false;
+
+    return {
+      value: time,
+      label: time,
+      disabled: unavailable,
+      description: unavailable ? 'Indisponível' : 'Disponível',
+    };
+  });
 
   const handleDateChange = (date: string) => {
     setFormData({
@@ -362,6 +408,11 @@ export default function NovaReservaPage() {
       return;
     }
 
+    if (isStartTimeTooSoon(slot.startTime)) {
+      toast.error('A reserva deve ser feita com no mínimo 24 horas de antecedência.');
+      return;
+    }
+
     setFormData({
       ...formData,
       startTime: slot.startTime,
@@ -378,6 +429,26 @@ export default function NovaReservaPage() {
     });
     setErrors({ ...errors, startTime: '', endTime: '' });
   };
+
+  const resetForm = () => {
+    setFormData(getInitialFormData());
+    setErrors({});
+    setBookings([]);
+    setRoomSelectorOpen(false);
+  };
+
+  const isSubmitDisabled =
+    isDemo ||
+    submitting ||
+    !formData.roomId ||
+    !formData.course.trim() ||
+    !formData.date ||
+    !formData.startTime ||
+    !formData.endTime ||
+    selectedDuration < 1 ||
+    formData.endTime <= formData.startTime ||
+    selectedConflicts.length > 0 ||
+    getHoursUntilBooking(formData.date, formData.startTime) < minimumLeadHours;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-50 p-4 sm:p-6">
@@ -474,7 +545,7 @@ export default function NovaReservaPage() {
 
                     {selectedRoom && (
                       <span className="hidden rounded-full bg-primary-50 px-3 py-1 text-xs font-black text-primary-700 sm:inline-flex">
-                        {selectedRoom.capacity} pessoas
+                        {selectedRoom.capacity ? `${selectedRoom.capacity} pessoas` : 'Capacidade não informada'}
                       </span>
                     )}
 
@@ -520,7 +591,7 @@ export default function NovaReservaPage() {
                                 <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
                                   <p className="truncate text-sm font-black text-gray-900">{room.name}</p>
                                   <span className="w-fit rounded-full bg-gray-100 px-2.5 py-1 text-xs font-black text-gray-700">
-                                    {room.capacity} pessoas
+                                    {room.capacity ? `${room.capacity} pessoas` : 'Capacidade não informada'}
                                   </span>
                                 </div>
                                 <p className="mt-1 text-sm font-semibold text-gray-600">
@@ -541,7 +612,7 @@ export default function NovaReservaPage() {
               </div>
               {selectedRoom && (
                 <p className="mt-2 text-sm text-gray-600 bg-gray-50 p-3 rounded-lg">
-                  📍 <strong>{getRoomTypeLabel(selectedRoom.type)}</strong> • Capacidade: {selectedRoom.capacity} pessoas
+                  📍 <strong>{getRoomTypeLabel(selectedRoom.type)}</strong> • Capacidade: {selectedRoom.capacity ? `${selectedRoom.capacity} pessoas` : 'não informada'}
                 </p>
               )}
               {errors.roomId && (
@@ -577,15 +648,11 @@ export default function NovaReservaPage() {
                   <Calendar size={18} className="text-primary-500" />
                   Data da Reserva *
                 </label>
-                <input
-                  type="date"
+                <DatePickerButton
                   value={formData.date}
-                  onChange={(e) => handleDateChange(e.target.value)}
+                  onChange={handleDateChange}
                   min={minDate}
-                  required
-                  className={`w-full px-4 py-3.5 border-2 rounded-xl focus:ring-4 focus:ring-primary-100 outline-none transition-all ${
-                    errors.date ? 'border-red-500 bg-red-50' : 'border-gray-200 focus:border-primary-500'
-                  }`}
+                  className={errors.date ? 'rounded-xl ring-2 ring-red-400' : ''}
                 />
                 <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
                   {quickDateOptions.map((option) => (
@@ -612,7 +679,7 @@ export default function NovaReservaPage() {
               <div>
                 <label className="flex items-center gap-2 text-sm font-bold text-gray-700 mb-3">
                   <Users size={18} className="text-primary-500" />
-                  Número de Alunos *
+                  Número de Alunos (opcional)
                 </label>
                 <input
                   type="number"
@@ -623,7 +690,6 @@ export default function NovaReservaPage() {
                   }}
                   placeholder="30"
                   min="1"
-                  required
                   className={`w-full px-4 py-3.5 border-2 rounded-xl focus:ring-4 focus:ring-primary-100 outline-none transition-all ${
                     errors.students ? 'border-red-500 bg-red-50' : 'border-gray-200 focus:border-primary-500'
                   }`}
@@ -691,6 +757,7 @@ export default function NovaReservaPage() {
                     <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
                       {availabilitySlots.map((slot) => {
                         const busy = slot.busyBookings.length > 0;
+                        const tooSoon = isStartTimeTooSoon(slot.startTime);
                         const selected = formData.startTime && formData.endTime
                           ? rangesOverlap(slot.startTime, slot.endTime, formData.startTime, formData.endTime)
                           : false;
@@ -705,15 +772,17 @@ export default function NovaReservaPage() {
                                 ? 'border-primary-500 bg-primary-600 text-white shadow-lg'
                                 : busy
                                   ? 'border-red-200 bg-red-50 text-left text-red-800 cursor-not-allowed opacity-80'
+                                  : tooSoon
+                                    ? 'border-gray-200 bg-gray-50 text-left text-gray-500 cursor-not-allowed opacity-80'
                                   : 'border-green-200 bg-green-50 text-left text-green-800 hover:border-green-400 hover:bg-green-100'
                             }`}
-                            aria-label={`${slot.startTime} até ${slot.endTime} ${busy ? 'ocupado' : 'livre'}`}
+                            aria-label={`${slot.startTime} até ${slot.endTime} ${busy ? 'ocupado' : tooSoon ? 'fora da antecedência mínima' : 'livre'}`}
                           >
                             <div className="text-sm font-black">
                               {slot.startTime} - {slot.endTime}
                             </div>
                             <div className="mt-1 text-xs font-bold">
-                              {selected ? 'Selecionado' : busy ? 'Ocupado' : 'Livre'}
+                              {selected ? 'Selecionado' : busy ? 'Ocupado' : tooSoon ? 'Antecedência mínima' : 'Livre'}
                             </div>
                             {busy && (
                               <div className="mt-2 space-y-1">
@@ -797,29 +866,16 @@ export default function NovaReservaPage() {
                   <Clock size={18} className="text-primary-500" />
                   Horário de Início *
                 </label>
-                <select
+                <SelectField
                   value={formData.startTime}
-                  onChange={(e) => {
-                    setFormData({ ...formData, startTime: e.target.value, endTime: '' });
+                  placeholder="Selecione..."
+                  options={startTimeOptions}
+                  error={Boolean(errors.startTime)}
+                  onChange={(value) => {
+                    setFormData({ ...formData, startTime: value, endTime: '' });
                     setErrors({ ...errors, startTime: '', endTime: '' });
                   }}
-                  required
-                  className={`w-full px-4 py-3.5 border-2 rounded-xl focus:ring-4 focus:ring-primary-100 outline-none transition-all ${
-                    errors.startTime ? 'border-red-500 bg-red-50' : 'border-gray-200 focus:border-primary-500'
-                  }`}
-                >
-                  <option value="">Selecione...</option>
-                  {startTimeSlots.map((time, index) => {
-                    const nextTime = timeSlots[index + 1];
-                    const disabled = formData.roomId ? isSlotBusy(time, nextTime) : false;
-
-                    return (
-                      <option key={time} value={time} disabled={disabled}>
-                        {time}{disabled ? ' - ocupado' : ''}
-                      </option>
-                    );
-                  })}
-                </select>
+                />
                 {errors.startTime && (
                   <p className="mt-2 text-sm text-red-600 font-semibold">⚠️ {errors.startTime}</p>
                 )}
@@ -830,31 +886,16 @@ export default function NovaReservaPage() {
                   <Clock size={18} className="text-primary-500" />
                   Horário de Término *
                 </label>
-                <select
+                <SelectField
                   value={formData.endTime}
-                  onChange={(e) => {
-                    setFormData({ ...formData, endTime: e.target.value });
+                  placeholder="Selecione..."
+                  options={endTimeOptions}
+                  error={Boolean(errors.endTime)}
+                  onChange={(value) => {
+                    setFormData({ ...formData, endTime: value });
                     setErrors({ ...errors, endTime: '' });
                   }}
-                  required
-                  className={`w-full px-4 py-3.5 border-2 rounded-xl focus:ring-4 focus:ring-primary-100 outline-none transition-all ${
-                    errors.endTime ? 'border-red-500 bg-red-50' : 'border-gray-200 focus:border-primary-500'
-                  }`}
-                >
-                  <option value="">Selecione...</option>
-                  {endTimeSlots.map((time) => {
-                    const disabled = formData.startTime
-                      ? time <= formData.startTime ||
-                        getConflictingBookings(formData.startTime, time).length > 0
-                      : false;
-
-                    return (
-                      <option key={time} value={time} disabled={disabled}>
-                        {time}{disabled && formData.startTime ? ' - indisponível' : ''}
-                      </option>
-                    );
-                  })}
-                </select>
+                />
                 {errors.endTime && (
                   <p className="mt-2 text-sm text-red-600 font-semibold">⚠️ {errors.endTime}</p>
                 )}
@@ -892,14 +933,14 @@ export default function NovaReservaPage() {
           <div className="mt-8 flex gap-4" data-tour="reserva-submit">
             <button
               type="button"
-              onClick={() => router.back()}
+              onClick={resetForm}
               className="flex-1 px-6 py-4 border-2 border-gray-300 text-gray-700 font-bold rounded-xl hover:bg-gray-50 transition-all"
             >
               Cancelar
             </button>
             <button
               type="submit"
-              disabled={isDemo || submitting}
+              disabled={isSubmitDisabled}
               className="flex-1 px-6 py-4 bg-gradient-to-r from-primary-500 to-secondary-500 text-white font-bold rounded-xl hover:shadow-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
             >
               {isDemo ? (

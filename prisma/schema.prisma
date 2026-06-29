@@ -48,6 +48,8 @@ model User {
   
   @@index([email])
   @@index([cpf])
+  @@index([role, createdAt])
+  @@index([role, department, createdAt])
   @@map("users")
 }
 
@@ -55,7 +57,7 @@ model Room {
   id       String   @id @default(cuid())
   name     String
   type     RoomType
-  capacity Int
+  capacity Int?
   building String
   floor    Int?
   equipment String[] // Array de equipamentos
@@ -69,7 +71,34 @@ model Room {
   
   @@index([type])
   @@index([building])
+  @@index([active, name])
   @@map("rooms")
+}
+
+model Equipment {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("equipment")
+}
+
+model Notification {
+  id            String   @id @default(cuid())
+  title         String
+  message       String
+  type          String   @default("INFO")
+  readBy        String[] @default([])
+  targetUserIds String[] @default([])
+  deletedBy     String[] @default([])
+  createdAt     DateTime @default(now())
+
+  @@index([createdAt])
+  @@index([targetUserIds], type: Gin)
+  @@index([readBy], type: Gin)
+  @@index([deletedBy], type: Gin)
+  @@map("notifications")
 }
 
 model Booking {
@@ -80,7 +109,7 @@ model Booking {
   startTime String // Formato: "HH:MM"
   endTime   String // Formato: "HH:MM"
   date      DateTime // Data da reserva
-  students  Int
+  students  Int @default(0)
   notes     String?
   
   // Status e aprovação
@@ -101,5 +130,11 @@ model Booking {
   @@index([status])
   @@index([roomId])
   @@index([professorId])
+  @@index([status, date])
+  @@index([status, createdAt])
+  @@index([professorId, date])
+  @@index([professorId, status, date])
+  @@index([roomId, date])
+  @@index([roomId, status, date, startTime, endTime])
   @@map("bookings")
 }

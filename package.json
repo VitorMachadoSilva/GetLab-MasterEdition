@@ -12,6 +12,7 @@
     "test:e2e:ui": "playwright test --config=playwright.config.ts --ui",
     "test:e2e:headed": "playwright test --config=playwright.config.ts --headed",
     "test:api": "playwright test --config=playwright.config.ts tests/api",
+    "test:perf": "npm exec playwright -- test --config=playwright.config.ts tests/performance --project=chromium-desktop --workers=1",
     "test:visual": "playwright test --config=playwright.config.ts tests/e2e/visual",
     "test:report": "playwright show-report test-results/playwright-report",
     "screenshots:organize": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/organize-screenshots.ps1",
@@ -33,6 +34,7 @@
     "react-hot-toast": "^2.4.1"
   },
   "devDependencies": {
+    "@playwright/test": "^1.61.1",
     "@types/bcryptjs": "^2.4.6",
     "@types/node": "^20",
     "@types/react": "^18",

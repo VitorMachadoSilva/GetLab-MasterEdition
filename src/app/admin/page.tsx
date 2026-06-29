@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useSession } from 'next-auth/react';
 import {
   AlertCircle,
@@ -10,6 +10,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Clock,
+  FileBarChart,
   MessageSquare,
   RefreshCw,
   Trash2,
@@ -51,6 +52,28 @@ type User = {
   };
 };
 
+type PaginatedBookingsResponse = {
+  data: Booking[];
+  total: number;
+  page: number;
+  pageCount: number;
+  summary?: {
+    total: number;
+    byStatus: Record<string, number>;
+  };
+};
+
+type PaginatedUsersResponse = {
+  data: User[];
+  total: number;
+  page: number;
+  pageCount: number;
+  summary?: {
+    total: number;
+    byRole: Record<string, number>;
+  };
+};
+
 const statusOptions: Array<{ value: BookingStatus; label: string }> = [
   { value: 'TODAS', label: 'Todas' },
   { value: 'PENDENTE', label: 'Pendentes' },
@@ -68,38 +91,111 @@ const statusClasses = {
 
 const pendingPageSize = 4;
 
+function buildBookingsUrl({
+  page,
+  limit,
+  status,
+  sort,
+  includeSummary,
+}: {
+  page: number;
+  limit: number;
+  status?: BookingStatus;
+  sort: 'asc' | 'desc';
+  includeSummary?: boolean;
+}) {
+  const params = new URLSearchParams({
+    paginated: 'true',
+    page: String(page),
+    limit: String(limit),
+    sort,
+  });
+
+  if (status && status !== 'TODAS') {
+    params.set('status', status);
+  }
+
+  if (includeSummary === false) {
+    params.set('includeSummary', 'false');
+  }
+
+  return `/api/bookings?${params.toString()}`;
+}
+
 export default function AdminPage() {
   const { data: session } = useSession();
-  const [activeTab, setActiveTab] = useState<'bookings' | 'users'>('bookings');
   const [bookings, setBookings] = useState<Booking[]>([]);
+  const [pendingBookings, setPendingBookings] = useState<Booking[]>([]);
   const [users, setUsers] = useState<User[]>([]);
+  const [bookingSummary, setBookingSummary] = useState<Record<string, number>>({});
+  const [allBookingsTotal, setAllBookingsTotal] = useState(0);
+  const [allBookingsPageCount, setAllBookingsPageCount] = useState(1);
+  const [pendingBookingsTotal, setPendingBookingsTotal] = useState(0);
+  const [pendingPageCount, setPendingPageCount] = useState(1);
+  const [userSummary, setUserSummary] = useState<Record<string, number>>({});
+  const [totalUsers, setTotalUsers] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [bookingFilter, setBookingFilter] = useState<BookingStatus>('TODAS');
   const [processingId, setProcessingId] = useState('');
   const [rejectingBooking, setRejectingBooking] = useState<Booking | null>(null);
   const [rejectionReason, setRejectionReason] = useState('');
   const [pendingPage, setPendingPage] = useState(1);
+  const [allBookingsPage, setAllBookingsPage] = useState(1);
   const isDemo = session?.user?.role === 'DEMO';
 
   useEffect(() => {
     fetchData();
-  }, []);
+  }, [bookingFilter, allBookingsPage, pendingPage]);
+
+  useEffect(() => {
+    setAllBookingsPage(1);
+  }, [bookingFilter]);
 
   const fetchData = async () => {
+    setRefreshing(true);
     try {
       const [bookingsRes, usersRes] = await Promise.all([
-        fetch('/api/bookings'),
-        fetch('/api/users'),
+        fetch(buildBookingsUrl({
+          page: allBookingsPage,
+          limit: 10,
+          status: bookingFilter === 'TODAS' ? undefined : bookingFilter,
+          sort: 'desc',
+        })),
+        fetch('/api/users?summaryOnly=true&includeDepartments=false'),
       ]);
+      const pendingRes = await fetch(buildBookingsUrl({
+        page: pendingPage,
+        limit: pendingPageSize,
+        status: 'PENDENTE',
+        sort: 'asc',
+        includeSummary: false,
+      }));
 
       if (bookingsRes.ok) {
-        setBookings(await bookingsRes.json());
+        const payload = (await bookingsRes.json()) as PaginatedBookingsResponse;
+        setBookings(payload.data);
+        setAllBookingsTotal(payload.total);
+        setAllBookingsPageCount(payload.pageCount);
+        setBookingSummary(payload.summary?.byStatus || {});
       } else {
         toast.error(await readApiError(bookingsRes, 'Não foi possível carregar as reservas'));
       }
 
+      if (pendingRes.ok) {
+        const payload = (await pendingRes.json()) as PaginatedBookingsResponse;
+        setPendingBookings(payload.data);
+        setPendingBookingsTotal(payload.total);
+        setPendingPageCount(payload.pageCount);
+      } else {
+        toast.error(await readApiError(pendingRes, 'Não foi possível carregar as reservas pendentes'));
+      }
+
       if (usersRes.ok) {
-        setUsers(await usersRes.json());
+        const payload = (await usersRes.json()) as PaginatedUsersResponse;
+        setUsers(payload.data);
+        setTotalUsers(payload.summary?.total ?? payload.total);
+        setUserSummary(payload.summary?.byRole || {});
       } else {
         toast.error(await readApiError(usersRes, 'Não foi possível carregar os usuários'));
       }
@@ -107,6 +203,7 @@ export default function AdminPage() {
       toast.error('Não foi possível carregar os dados do painel. Verifique sua conexão e tente novamente.');
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
   };
 
@@ -210,43 +307,25 @@ export default function AdminPage() {
     }
   };
 
-  const pendingBookings = useMemo(() => {
-    return bookings
-      .filter((booking) => booking.status === 'PENDENTE')
-      .sort((a, b) => {
-        const dateCompare = new Date(a.date).getTime() - new Date(b.date).getTime();
-        return dateCompare || a.startTime.localeCompare(b.startTime);
-      });
-  }, [bookings]);
-
-  const pendingPageCount = Math.max(1, Math.ceil(pendingBookings.length / pendingPageSize));
   const currentPendingPage = Math.min(pendingPage, pendingPageCount);
   const pendingStartIndex = (currentPendingPage - 1) * pendingPageSize;
-  const pendingPageBookings = pendingBookings.slice(
-    pendingStartIndex,
-    pendingStartIndex + pendingPageSize
-  );
-  const pendingEndIndex = Math.min(pendingStartIndex + pendingPageSize, pendingBookings.length);
+  const pendingPageBookings = pendingBookings;
+  const pendingEndIndex = Math.min(pendingStartIndex + pendingBookings.length, pendingBookingsTotal);
 
-  const filteredBookings = useMemo(() => {
-    const list = bookingFilter === 'TODAS'
-      ? bookings
-      : bookings.filter((booking) => booking.status === bookingFilter);
-
-    return [...list].sort((a, b) => {
-      const dateCompare = new Date(b.date).getTime() - new Date(a.date).getTime();
-      return dateCompare || b.startTime.localeCompare(a.startTime);
-    });
-  }, [bookings, bookingFilter]);
+  const allBookingsPageSize = 10;
+  const currentAllBookingsPage = Math.min(allBookingsPage, allBookingsPageCount);
+  const allBookingsStartIndex = (currentAllBookingsPage - 1) * allBookingsPageSize;
+  const allBookingsPageItems = bookings;
+  const allBookingsEndIndex = Math.min(allBookingsStartIndex + bookings.length, allBookingsTotal);
 
   const stats = {
-    totalBookings: bookings.length,
-    pending: pendingBookings.length,
-    approved: bookings.filter((booking) => booking.status === 'APROVADA').length,
-    rejected: bookings.filter((booking) => booking.status === 'REJEITADA').length,
-    totalUsers: users.length,
-    professors: users.filter((user) => user.role === 'PROFESSOR').length,
-    students: users.filter((user) => user.role === 'ALUNO').length,
+    totalBookings: Object.values(bookingSummary).reduce((sum, value) => sum + value, 0),
+    pending: bookingSummary.PENDENTE || 0,
+    approved: bookingSummary.APROVADA || 0,
+    rejected: bookingSummary.REJEITADA || 0,
+    totalUsers,
+    professors: userSummary.PROFESSOR || 0,
+    students: userSummary.ALUNO || 0,
   };
 
   if (loading) {
@@ -273,8 +352,15 @@ export default function AdminPage() {
             <Link href="/admin/usuarios" className="px-6 py-3 bg-blue-500 text-white rounded-lg hover:bg-blue-600 font-semibold">
               Gerenciar Usuários
             </Link>
+            <Link href="/admin/alunos" className="px-6 py-3 bg-cyan-500 text-white rounded-lg hover:bg-cyan-600 font-semibold">
+              Gerenciar Alunos
+            </Link>
             <Link href="/admin/salas" className="px-6 py-3 bg-green-500 text-white rounded-lg hover:bg-green-600 font-semibold">
               Gerenciar Salas
+            </Link>
+            <Link href="/admin/relatorios" className="inline-flex items-center gap-2 px-6 py-3 bg-purple-500 text-white rounded-lg hover:bg-purple-600 font-semibold">
+              <FileBarChart size={18} />
+              Relatórios
             </Link>
           </div>
         </div>
@@ -287,48 +373,22 @@ export default function AdminPage() {
           <MetricCard label="Total Usuários" value={stats.totalUsers} tone="blue" />
         </div>
 
-        <div className="flex flex-wrap gap-2 mb-6" data-tour="admin-tabs">
-          <button
-            onClick={() => setActiveTab('bookings')}
-            className={`px-6 py-3 rounded-lg font-bold transition-all ${
-              activeTab === 'bookings'
-                ? 'bg-gradient-to-r from-primary-500 to-secondary-500 text-white'
-                : 'bg-white border-2 border-gray-200'
-            }`}
-          >
-            <Calendar size={20} className="inline mr-2" />
-            Reservas
-          </button>
-          <button
-            onClick={() => setActiveTab('users')}
-            className={`px-6 py-3 rounded-lg font-bold transition-all ${
-              activeTab === 'users'
-                ? 'bg-gradient-to-r from-primary-500 to-secondary-500 text-white'
-                : 'bg-white border-2 border-gray-200'
-            }`}
-          >
-            <Users size={20} className="inline mr-2" />
-            Usuários
-          </button>
-        </div>
-
-        {activeTab === 'bookings' && (
-          <div className="space-y-8">
+        <div className="space-y-8">
             <section data-tour="admin-pendentes">
               <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                 <div>
                   <h2 className="text-2xl font-black text-gray-900">Pendentes de Aprovação</h2>
                   <p className="text-sm text-gray-600">
                     Analise as solicitações novas antes de liberar o ambiente.
-                    {pendingBookings.length > 0 && (
+                    {pendingBookingsTotal > 0 && (
                       <span className="block font-semibold text-gray-700 sm:inline">
-                        {' '}Mostrando {pendingStartIndex + 1}-{pendingEndIndex} de {pendingBookings.length}.
+                        {' '}Mostrando {pendingStartIndex + 1}-{pendingEndIndex} de {pendingBookingsTotal}.
                       </span>
                     )}
                   </p>
                 </div>
                 <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-                  {pendingBookings.length > pendingPageSize && (
+                  {pendingBookingsTotal > pendingPageSize && (
                     <PaginationControls
                       currentPage={currentPendingPage}
                       pageCount={pendingPageCount}
@@ -338,36 +398,37 @@ export default function AdminPage() {
                   )}
                   <button
                     onClick={fetchData}
+                    disabled={refreshing}
                     className="inline-flex items-center justify-center gap-2 rounded-xl border-2 border-primary-200 bg-white px-4 py-2 text-sm font-bold text-primary-700 hover:border-primary-400"
                   >
-                    <RefreshCw size={16} />
+                    <RefreshCw size={16} className={refreshing ? 'animate-spin' : ''} />
                     Atualizar
                   </button>
                 </div>
               </div>
 
-              {pendingBookings.length > 0 ? (
+              {pendingBookingsTotal > 0 ? (
                 <>
                   <div className="grid gap-4">
                   {pendingPageBookings.map((booking) => (
-                    <div key={booking.id} className="rounded-2xl border-2 border-yellow-300 bg-yellow-50 p-5">
-                      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-                        <BookingSummary booking={booking} />
+                    <div key={booking.id} className="rounded-2xl border-2 border-yellow-300 bg-yellow-50 p-4">
+                      <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                        <BookingSummary booking={booking} compact />
                         <div className="flex flex-wrap gap-2 lg:justify-end">
                           <button
                             onClick={() => handleApprove(booking)}
                             disabled={isDemo || processingId === booking.id}
-                            className="inline-flex items-center justify-center gap-2 rounded-xl bg-green-600 px-4 py-2 font-bold text-white hover:bg-green-700 disabled:opacity-60"
+                            className="inline-flex items-center justify-center gap-2 rounded-xl bg-green-600 px-3 py-2 text-sm font-bold text-white hover:bg-green-700 disabled:opacity-60"
                           >
-                            <Check size={18} />
+                            <Check size={16} />
                             Aprovar
                           </button>
                           <button
                             onClick={() => openRejectModal(booking)}
                             disabled={isDemo || processingId === booking.id}
-                            className="inline-flex items-center justify-center gap-2 rounded-xl bg-red-600 px-4 py-2 font-bold text-white hover:bg-red-700 disabled:opacity-60"
+                            className="inline-flex items-center justify-center gap-2 rounded-xl bg-red-600 px-3 py-2 text-sm font-bold text-white hover:bg-red-700 disabled:opacity-60"
                           >
-                            <X size={18} />
+                            <X size={16} />
                             Rejeitar
                           </button>
                         </div>
@@ -376,7 +437,7 @@ export default function AdminPage() {
                   ))}
                   </div>
 
-                  {pendingBookings.length > pendingPageSize && (
+                  {pendingBookingsTotal > pendingPageSize && (
                     <div className="mt-4 flex flex-col gap-3 rounded-2xl border-2 border-yellow-100 bg-white p-4 sm:flex-row sm:items-center sm:justify-between">
                       <p className="text-sm font-semibold text-gray-600">
                         Página {currentPendingPage} de {pendingPageCount} das solicitações pendentes.
@@ -402,7 +463,14 @@ export default function AdminPage() {
               <div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
                 <div>
                   <h2 className="text-2xl font-black text-gray-900">Todas as Reservas</h2>
-                  <p className="text-sm text-gray-600">Use os filtros para acompanhar o histórico por status.</p>
+                  <p className="text-sm text-gray-600">
+                    Use os filtros para acompanhar o histórico por status.
+                    {allBookingsTotal > 0 && (
+                      <span className="block font-semibold text-gray-700 sm:inline">
+                        {' '}Mostrando {allBookingsStartIndex + 1}-{allBookingsEndIndex} de {allBookingsTotal}.
+                      </span>
+                    )}
+                  </p>
                 </div>
                 <div className="flex flex-wrap gap-2">
                   {statusOptions.map((option) => (
@@ -421,7 +489,7 @@ export default function AdminPage() {
                 </div>
               </div>
 
-              {filteredBookings.length > 0 ? (
+              {allBookingsTotal > 0 ? (
                 <div className="overflow-hidden rounded-2xl border-2 border-gray-200 bg-white shadow-sm">
                   <div className="overflow-x-auto">
                     <table className="w-full min-w-[900px]">
@@ -437,7 +505,7 @@ export default function AdminPage() {
                         </tr>
                       </thead>
                       <tbody>
-                        {filteredBookings.map((booking) => (
+                        {allBookingsPageItems.map((booking) => (
                           <tr key={booking.id} className="border-b hover:bg-gray-50">
                             <td className="px-5 py-4 font-bold text-gray-900">{booking.course}</td>
                             <td className="px-5 py-4">
@@ -487,6 +555,19 @@ export default function AdminPage() {
                       </tbody>
                     </table>
                   </div>
+                  {allBookingsTotal > allBookingsPageSize && (
+                    <div className="flex flex-col gap-3 border-t border-gray-100 p-4 sm:flex-row sm:items-center sm:justify-between">
+                      <p className="text-sm font-semibold text-gray-600">
+                        Página {currentAllBookingsPage} de {allBookingsPageCount} do histórico.
+                      </p>
+                      <PaginationControls
+                        currentPage={currentAllBookingsPage}
+                        pageCount={allBookingsPageCount}
+                        onPrevious={() => setAllBookingsPage(Math.max(1, currentAllBookingsPage - 1))}
+                        onNext={() => setAllBookingsPage(Math.min(allBookingsPageCount, currentAllBookingsPage + 1))}
+                      />
+                    </div>
+                  )}
                 </div>
               ) : (
                 <EmptyState
@@ -496,45 +577,6 @@ export default function AdminPage() {
               )}
             </section>
           </div>
-        )}
-
-        {activeTab === 'users' && (
-          <div className="overflow-hidden rounded-2xl border-2 border-gray-200 bg-white">
-            <div className="overflow-x-auto">
-              <table className="w-full min-w-[720px]">
-                <thead className="bg-gradient-to-r from-primary-500 to-secondary-500 text-white">
-                  <tr>
-                    <th className="px-6 py-4 text-left">Nome</th>
-                    <th className="px-6 py-4 text-left">Email</th>
-                    <th className="px-6 py-4 text-left">CPF</th>
-                    <th className="px-6 py-4 text-left">Tipo</th>
-                    <th className="px-6 py-4 text-left">Reservas</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {users.map((user) => (
-                    <tr key={user.id} className="border-b hover:bg-gray-50">
-                      <td className="px-6 py-4 font-semibold">{user.name}</td>
-                      <td className="px-6 py-4">{user.email}</td>
-                      <td className="px-6 py-4">{user.cpf}</td>
-                      <td className="px-6 py-4">
-                        <span className={`px-2 py-1 rounded text-xs font-bold ${
-                          user.role === 'ADMIN' ? 'bg-red-100 text-red-800' :
-                          user.role === 'DEMO' ? 'bg-purple-100 text-purple-800' :
-                          user.role === 'PROFESSOR' ? 'bg-blue-100 text-blue-800' :
-                          'bg-gray-100 text-gray-800'
-                        }`}>
-                          {user.role}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4">{user._count.bookingsCreated}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        )}
       </div>
 
       {rejectingBooking && (
@@ -613,9 +655,9 @@ function MetricCard({
   };
 
   return (
-    <div className={`rounded-xl border-2 p-6 ${toneClasses[tone]}`}>
-      <div className="text-3xl font-black">{value}</div>
-      <div className="text-sm font-semibold opacity-80">{label}</div>
+    <div className={`rounded-xl border-2 p-4 ${toneClasses[tone]}`}>
+      <div className="text-2xl font-black">{value}</div>
+      <div className="text-xs font-bold uppercase opacity-80">{label}</div>
     </div>
   );
 }
@@ -680,11 +722,15 @@ function BookingSummary({ booking, compact = false }: { booking: Booking; compac
         </span>
         <span className="flex items-center gap-2">
           <AlertCircle size={15} className="text-primary-600" />
-          {booking.room.name} • {booking.students} alunos
+          {booking.room.name} • {booking.students ? `${booking.students} alunos` : 'alunos não informados'}
         </span>
       </div>
       {booking.notes && !compact && (
-        <p className="mt-3 rounded-lg bg-white/70 px-3 py-2 text-sm text-gray-700">
+        <p className={`mt-3 rounded-lg px-3 py-2 text-sm ${
+          booking.status === 'CANCELADA' && booking.notes.includes('Cancelamento automático')
+            ? 'border border-orange-200 bg-orange-50 text-orange-800'
+            : 'bg-white/70 text-gray-700'
+        }`}>
           <strong>Observações:</strong> {booking.notes}
         </p>
       )}
@@ -711,5 +757,6 @@ function EmptyState({ title, description }: { title: string; description: string
 }
 
 function formatDate(date: string) {
-  return new Date(date).toLocaleDateString('pt-BR');
+  const [year, month, day] = date.slice(0, 10).split('-').map(Number);
+  return new Date(year, month - 1, day).toLocaleDateString('pt-BR');
 }

@@ -209,3 +209,38 @@ body {
   animation: pulse-glow 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
 }
 
+@keyframes bell-reminder {
+  0%, 91%, 100% {
+    transform: rotate(0deg);
+  }
+  92% {
+    transform: rotate(12deg);
+  }
+  94% {
+    transform: rotate(-12deg);
+  }
+  96% {
+    transform: rotate(10deg);
+  }
+  98% {
+    transform: rotate(-8deg);
+  }
+}
+
+.bell-reminder svg {
+  transform-origin: 50% 12%;
+  animation: bell-reminder 30s ease-in-out infinite;
+}
+
+.select-modern {
+  appearance: none;
+  background-image:
+    linear-gradient(45deg, transparent 50%, #1a5490 50%),
+    linear-gradient(135deg, #1a5490 50%, transparent 50%);
+  background-position:
+    calc(100% - 20px) calc(50% + 1px),
+    calc(100% - 14px) calc(50% + 1px);
+  background-size: 6px 6px, 6px 6px;
+  background-repeat: no-repeat;
+}
+

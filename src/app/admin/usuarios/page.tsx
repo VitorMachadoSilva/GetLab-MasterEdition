@@ -1,9 +1,11 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useSession } from 'next-auth/react';
 import {
   AlertCircle,
+  ChevronLeft,
+  ChevronRight,
   Edit2,
   Filter,
   Search,
@@ -38,6 +40,17 @@ type UserFormData = {
   department: string;
 };
 
+type PaginatedUsersResponse = {
+  data: User[];
+  total: number;
+  page: number;
+  pageCount: number;
+  summary?: {
+    total: number;
+    byRole: Record<string, number>;
+  };
+};
+
 const roleOptions: Array<{ value: UserRole; label: string }> = [
   { value: 'TODOS', label: 'Todos' },
   { value: 'PROFESSOR', label: 'Professores' },
@@ -62,18 +75,56 @@ export default function GerenciarUsuariosPage() {
   const [showModal, setShowModal] = useState(false);
   const [editingUser, setEditingUser] = useState<User | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
+  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
   const [roleFilter, setRoleFilter] = useState<UserRole>('TODOS');
+  const [page, setPage] = useState(1);
+  const [totalUsers, setTotalUsers] = useState(0);
+  const [pageCount, setPageCount] = useState(1);
+  const [summary, setSummary] = useState<Record<string, number>>({});
   const [formData, setFormData] = useState<UserFormData>(emptyForm);
   const isDemo = session?.user?.role === 'DEMO';
+  const editingOwnAdmin = Boolean(
+    editingUser && editingUser.id === session?.user?.id && editingUser.role === 'ADMIN'
+  );
 
-  useEffect(() => { fetchUsers(); }, []);
+  useEffect(() => {
+    const timer = window.setTimeout(() => setDebouncedSearchTerm(searchTerm), 300);
+    return () => window.clearTimeout(timer);
+  }, [searchTerm]);
+
+  useEffect(() => {
+    fetchUsers();
+  }, [page, roleFilter, debouncedSearchTerm]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [roleFilter, debouncedSearchTerm]);
 
   const fetchUsers = async () => {
     setLoading(true);
     try {
-      const res = await fetch('/api/users');
+      const params = new URLSearchParams({
+        paginated: 'true',
+        page: String(page),
+        limit: '10',
+      });
+
+      if (roleFilter !== 'TODOS') {
+        params.set('role', roleFilter);
+      }
+
+      const search = debouncedSearchTerm.trim();
+      if (search) {
+        params.set('search', search);
+      }
+
+      const res = await fetch(`/api/users?${params.toString()}`);
       if (res.ok) {
-        setUsers(await res.json());
+        const payload = (await res.json()) as PaginatedUsersResponse;
+        setUsers(payload.data);
+        setTotalUsers(payload.total);
+        setPageCount(payload.pageCount);
+        setSummary(payload.summary?.byRole || {});
       } else {
         toast.error(await readApiError(res, 'Não foi possível carregar os usuários'));
       }
@@ -207,33 +258,26 @@ export default function GerenciarUsuariosPage() {
     }
   };
 
-  const filteredUsers = useMemo(() => {
-    const query = searchTerm.trim().toLowerCase();
-
-    return users.filter((user) => {
-      const matchesRole = roleFilter === 'TODOS' || user.role === roleFilter;
-      const matchesSearch = !query ||
-        user.name.toLowerCase().includes(query) ||
-        user.email.toLowerCase().includes(query) ||
-        user.cpf.includes(query) ||
-        (user.department || '').toLowerCase().includes(query);
-
-      return matchesRole && matchesSearch;
-    });
-  }, [users, roleFilter, searchTerm]);
-
   const stats = {
-    total: users.length,
-    professors: users.filter((user) => user.role === 'PROFESSOR').length,
-    students: users.filter((user) => user.role === 'ALUNO').length,
-    admins: users.filter((user) => user.role === 'ADMIN').length,
+    total: summary.ADMIN || summary.PROFESSOR || summary.ALUNO || summary.DEMO
+      ? Object.values(summary).reduce((sum, value) => sum + value, 0)
+      : totalUsers,
+    professors: summary.PROFESSOR || 0,
+    students: summary.ALUNO || 0,
+    admins: summary.ADMIN || 0,
   };
+
+  const pageSize = 10;
+  const currentPage = Math.min(page, pageCount);
+  const startIndex = (currentPage - 1) * pageSize;
+  const paginatedUsers = users;
+  const endIndex = Math.min(startIndex + users.length, totalUsers);
 
   if (loading) return <LoadingSpinner />;
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-50 p-4 sm:p-6">
-      <div className="max-w-7xl mx-auto">
+    <div className="min-h-screen overflow-x-hidden bg-gradient-to-br from-blue-50 via-white to-indigo-50 p-4 sm:p-6">
+      <div className="mx-auto w-full max-w-7xl">
         <div className="mb-8 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between" data-tour="admin-usuarios-header">
           <div>
             <h1 className="text-4xl font-black text-gray-900">Gerenciar Usuários</h1>
@@ -295,11 +339,13 @@ export default function GerenciarUsuariosPage() {
             </div>
           </div>
           <p className="mt-3 text-sm font-semibold text-gray-500">
-            Mostrando {filteredUsers.length} de {users.length} usuário(s).
+            {totalUsers > 0
+              ? `Mostrando ${startIndex + 1}-${endIndex} de ${totalUsers} usuário(s) filtrado(s).`
+              : 'Nenhum usuário no filtro atual.'}
           </p>
         </div>
 
-        {filteredUsers.length > 0 ? (
+        {totalUsers > 0 ? (
           <>
             <div className="hidden overflow-hidden rounded-2xl border-2 border-gray-200 bg-white shadow-xl lg:block" data-tour="admin-usuarios-lista">
               <div className="overflow-x-auto">
@@ -316,7 +362,7 @@ export default function GerenciarUsuariosPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {filteredUsers.map((user) => (
+                    {paginatedUsers.map((user) => (
                       <tr key={user.id} className="border-b hover:bg-gray-50 transition-colors">
                         <td className="px-6 py-4 font-semibold">{user.name}</td>
                         <td className="px-6 py-4 text-sm">{user.email}</td>
@@ -327,7 +373,7 @@ export default function GerenciarUsuariosPage() {
                         <td className="px-6 py-4 text-sm">{user.department || '-'}</td>
                         <td className="px-6 py-4 text-sm font-bold">{user._count?.bookingsCreated || 0}</td>
                         <td className="px-6 py-4">
-                          <UserActions user={user} onEdit={openEditModal} onDelete={handleDelete} />
+                          <UserActions user={user} currentUserId={session?.user?.id} onEdit={openEditModal} onDelete={handleDelete} />
                         </td>
                       </tr>
                     ))}
@@ -336,9 +382,9 @@ export default function GerenciarUsuariosPage() {
               </div>
             </div>
 
-            <div className="grid gap-4 lg:hidden" data-tour="admin-usuarios-lista">
-              {filteredUsers.map((user) => (
-                <div key={user.id} className="rounded-2xl border-2 border-gray-200 bg-white p-5 shadow-sm">
+            <div className="grid min-w-0 gap-4 lg:hidden" data-tour="admin-usuarios-lista">
+              {paginatedUsers.map((user) => (
+                <div key={user.id} className="min-w-0 overflow-hidden rounded-2xl border-2 border-gray-200 bg-white p-5 shadow-sm">
                   <div className="mb-3 flex items-start justify-between gap-3">
                     <div className="min-w-0">
                       <h2 className="truncate text-xl font-black text-gray-900">{user.name}</h2>
@@ -354,11 +400,20 @@ export default function GerenciarUsuariosPage() {
                   </div>
 
                   <div className="mt-4 border-t border-gray-100 pt-4">
-                    <UserActions user={user} onEdit={openEditModal} onDelete={handleDelete} />
+                    <UserActions user={user} currentUserId={session?.user?.id} onEdit={openEditModal} onDelete={handleDelete} />
                   </div>
                 </div>
               ))}
             </div>
+
+            {totalUsers > pageSize && (
+              <PaginationControls
+                currentPage={currentPage}
+                pageCount={pageCount}
+                onPrevious={() => setPage(Math.max(1, currentPage - 1))}
+                onNext={() => setPage(Math.min(pageCount, currentPage + 1))}
+              />
+            )}
           </>
         ) : (
           <EmptyState
@@ -402,6 +457,7 @@ export default function GerenciarUsuariosPage() {
                   <select
                     value={formData.role}
                     onChange={(e) => setFormData({ ...formData, role: e.target.value as UserFormData['role'] })}
+                    disabled={editingOwnAdmin}
                     className="w-full rounded-xl border-2 border-gray-200 px-4 py-3 outline-none focus:border-primary-500 focus:ring-4 focus:ring-primary-100"
                   >
                     <option value="ALUNO">Aluno</option>
@@ -409,6 +465,11 @@ export default function GerenciarUsuariosPage() {
                     <option value="ADMIN">Administrador</option>
                     <option value="DEMO">Demo</option>
                   </select>
+                  {editingOwnAdmin && (
+                    <p className="mt-2 rounded-xl bg-orange-50 px-3 py-2 text-xs font-bold text-orange-700">
+                      Você não pode remover ou alterar sua própria permissão de administrador.
+                    </p>
+                  )}
                   <RoleHint role={formData.role} />
                 </div>
 
@@ -498,9 +559,52 @@ function MetricCard({
   };
 
   return (
-    <div className={`rounded-xl border-2 p-6 ${toneClasses[tone]}`}>
-      <div className="text-3xl font-black">{value}</div>
-      <div className="text-sm font-semibold opacity-80">{label}</div>
+    <div className={`rounded-xl border-2 p-4 ${toneClasses[tone]}`}>
+      <div className="text-2xl font-black">{value}</div>
+      <div className="text-xs font-bold uppercase opacity-80">{label}</div>
+    </div>
+  );
+}
+
+function PaginationControls({
+  currentPage,
+  pageCount,
+  onPrevious,
+  onNext,
+}: {
+  currentPage: number;
+  pageCount: number;
+  onPrevious: () => void;
+  onNext: () => void;
+}) {
+  return (
+    <div className="mt-4 flex flex-col gap-3 rounded-2xl border-2 border-gray-200 bg-white p-3 sm:flex-row sm:items-center sm:justify-between">
+      <p className="text-sm font-semibold text-gray-600">
+        Página {currentPage} de {pageCount}
+      </p>
+      <div className="inline-flex w-fit items-center justify-center gap-2 rounded-xl border-2 border-gray-200 bg-white p-1">
+        <button
+          type="button"
+          onClick={onPrevious}
+          disabled={currentPage <= 1}
+          className="inline-flex h-9 w-9 items-center justify-center rounded-lg text-gray-700 transition-colors hover:bg-primary-50 disabled:cursor-not-allowed disabled:opacity-40"
+          aria-label="Página anterior"
+        >
+          <ChevronLeft size={18} />
+        </button>
+        <span className="min-w-[92px] px-2 text-center text-sm font-black text-gray-700">
+          {currentPage} / {pageCount}
+        </span>
+        <button
+          type="button"
+          onClick={onNext}
+          disabled={currentPage >= pageCount}
+          className="inline-flex h-9 w-9 items-center justify-center rounded-lg text-gray-700 transition-colors hover:bg-primary-50 disabled:cursor-not-allowed disabled:opacity-40"
+          aria-label="Próxima página"
+        >
+          <ChevronRight size={18} />
+        </button>
+      </div>
     </div>
   );
 }
@@ -514,7 +618,7 @@ function RoleBadge({ role }: { role: User['role'] }) {
   };
 
   return (
-    <span className={`whitespace-nowrap rounded-lg px-3 py-1 text-xs font-black ${classes[role]}`}>
+    <span className={`shrink-0 whitespace-nowrap rounded-lg px-3 py-1 text-xs font-black ${classes[role]}`}>
       {role}
     </span>
   );
@@ -539,20 +643,24 @@ function InfoRow({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex items-center justify-between gap-3 rounded-xl bg-gray-50 px-3 py-2">
       <span className="text-xs font-black uppercase text-gray-500">{label}</span>
-      <span className="text-right text-sm font-semibold text-gray-800">{value}</span>
+      <span className="min-w-0 break-words text-right text-sm font-semibold text-gray-800">{value}</span>
     </div>
   );
 }
 
 function UserActions({
   user,
+  currentUserId,
   onEdit,
   onDelete,
 }: {
   user: User;
+  currentUserId?: string;
   onEdit: (user: User) => void;
   onDelete: (user: User) => void;
 }) {
+  const isCurrentUser = user.id === currentUserId;
+
   return (
     <div className="flex gap-2">
       <button
@@ -565,8 +673,9 @@ function UserActions({
       </button>
       <button
         onClick={() => onDelete(user)}
-        className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl bg-red-50 px-3 py-2 font-bold text-red-700 transition-colors hover:bg-red-100 lg:flex-none"
-        title="Excluir usuário"
+        disabled={isCurrentUser}
+        className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl bg-red-50 px-3 py-2 font-bold text-red-700 transition-colors hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-50 lg:flex-none"
+        title={isCurrentUser ? 'Você não pode excluir seu próprio usuário' : 'Excluir usuário'}
       >
         <Trash2 size={18} />
         <span className="lg:hidden">Excluir</span>

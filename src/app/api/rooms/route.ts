@@ -5,6 +5,7 @@ import { readJsonObject } from '@/lib/api-validation';
 import { prisma } from '@/lib/prisma';
 import { parseRoomPayload } from '@/lib/room-validation';
 import { demoWriteBlocked, isDemoRole } from '@/lib/demo-access';
+import { createNotification } from '@/lib/notifications';
 
 // GET - Listar salas
 export async function GET(request: NextRequest) {
@@ -52,6 +53,12 @@ export async function POST(request: NextRequest) {
 
     const room = await prisma.room.create({
       data: parsedRoom.data,
+    });
+
+    await createNotification({
+      title: 'Nova sala cadastrada',
+      message: `${session.user.name} cadastrou a sala ${room.name}.`,
+      type: 'ROOM',
     });
 
     return NextResponse.json(room, { status: 201 });

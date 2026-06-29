@@ -7,6 +7,7 @@ import { cleanString, isValidCuid, readJsonObject } from '@/lib/api-validation';
 import { prisma } from '@/lib/prisma';
 import { BookingStatus, UserRole } from '@prisma/client';
 import { canReadAdminViews, demoWriteBlocked, isDemoRole } from '@/lib/demo-access';
+import { createNotification } from '@/lib/notifications';
 
 const activeBookingStatuses = ['PENDENTE', 'APROVADA'] as const;
 const validBookingStatuses = ['PENDENTE', 'APROVADA', 'REJEITADA', 'CANCELADA'] as const;
@@ -14,6 +15,17 @@ const businessHours = {
   start: 7 * 60,
   end: 22 * 60,
 };
+const minimumLeadHours = 24;
+const approvalLimitHours = 2;
+const defaultPageSize = 10;
+const maxPageSize = 100;
+const autoCancelMessage =
+  'Cancelamento automático: prazo de aprovação expirado. O administrador tinha até 2 horas antes do início da reserva para aprovar.';
+
+function parsePositiveInt(value: string | null, fallback: number) {
+  const parsed = Number(value);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : fallback;
+}
 
 function parseDateOnly(date: string) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
@@ -51,15 +63,84 @@ function timeToMinutes(time: string) {
   return hours * 60 + minutes;
 }
 
+function getBookingDateTime(date: Date, time: string) {
+  const [hours, minutes] = time.split(':').map(Number);
+  const bookingDateTime = new Date(date);
+  bookingDateTime.setHours(hours, minutes, 0, 0);
+  return bookingDateTime;
+}
+
+function appendAutoCancelNote(currentNote: string | null) {
+  if (currentNote?.includes(autoCancelMessage)) {
+    return currentNote;
+  }
+
+  return currentNote ? `${currentNote}\n\n${autoCancelMessage}` : autoCancelMessage;
+}
+
+async function cancelExpiredPendingBookings() {
+  const limit = new Date(Date.now() + approvalLimitHours * 60 * 60 * 1000);
+  const possibleExpiredBookings = await prisma.booking.findMany({
+    where: {
+      status: 'PENDENTE',
+      date: {
+        lte: limit,
+      },
+    },
+      select: {
+        id: true,
+        date: true,
+        startTime: true,
+        notes: true,
+        course: true,
+        professorId: true,
+      },
+  });
+
+  const expiredBookings = possibleExpiredBookings.filter(
+    (booking) => getBookingDateTime(booking.date, booking.startTime).getTime() <= limit.getTime()
+  );
+
+  if (expiredBookings.length === 0) {
+    return;
+  }
+
+  await Promise.all(
+    expiredBookings.map((booking) =>
+      prisma.booking.update({
+        where: { id: booking.id },
+        data: {
+          status: 'CANCELADA',
+          notes: appendAutoCancelNote(booking.notes),
+        },
+      })
+    )
+  );
+
+  await createNotification({
+    title: 'Reservas canceladas automaticamente',
+    message: `${expiredBookings.length} solicitação(ões) passaram do prazo de aprovação de 2 horas antes do início.`,
+    type: 'BOOKING',
+    targetUserIds: Array.from(new Set(expiredBookings.map((booking) => booking.professorId))),
+  });
+}
+
 // GET - Listar reservas
 export async function GET(request: NextRequest) {
   try {
+    await cancelExpiredPendingBookings();
+
     const { searchParams } = new URL(request.url);
     const date = searchParams.get('date');
     const status = searchParams.get('status');
     const professorId = searchParams.get('professorId');
     const roomId = searchParams.get('roomId');
     const publicView = searchParams.get('public') === 'true';
+    const paginated = searchParams.get('paginated') === 'true';
+    const page = parsePositiveInt(searchParams.get('page'), 1);
+    const limit = Math.min(parsePositiveInt(searchParams.get('limit'), defaultPageSize), maxPageSize);
+    const sort = searchParams.get('sort') === 'desc' ? 'desc' : 'asc';
+    const includeSummary = searchParams.get('includeSummary') !== 'false';
     const session = publicView ? await getServerSession(authOptions) : await getActiveServerSession();
 
     if (!session?.user && !publicView) {
@@ -165,6 +246,81 @@ export async function GET(request: NextRequest) {
       return NextResponse.json(bookings);
     }
 
+    if (paginated) {
+      const statusSummaryWhere = { ...where };
+      delete statusSummaryWhere.status;
+
+      const orderBy = [
+        { date: sort },
+        { startTime: sort },
+      ] as Array<{ date: 'asc' | 'desc' } | { startTime: 'asc' | 'desc' }>;
+
+      const [bookings, total, statusCounts] = await Promise.all([
+        prisma.booking.findMany({
+          where,
+          select: {
+            id: true,
+            course: true,
+            startTime: true,
+            endTime: true,
+            date: true,
+            students: true,
+            notes: true,
+            status: true,
+            createdAt: true,
+            room: {
+              select: {
+                id: true,
+                name: true,
+                type: true,
+                building: true,
+                capacity: true,
+              },
+            },
+            professor: {
+              select: {
+                id: true,
+                name: true,
+                email: true,
+              },
+            },
+          },
+          orderBy,
+          skip: (page - 1) * limit,
+          take: limit,
+        }),
+        prisma.booking.count({ where }),
+        includeSummary
+          ? prisma.booking.groupBy({
+              by: ['status'],
+              where: statusSummaryWhere,
+              _count: {
+                _all: true,
+              },
+            })
+          : Promise.resolve([]),
+      ]);
+
+      return NextResponse.json({
+        data: bookings,
+        total,
+        page,
+        limit,
+        pageCount: Math.max(1, Math.ceil(total / limit)),
+        ...(includeSummary
+          ? {
+              summary: {
+                total: statusCounts.reduce((sum, item) => sum + item._count._all, 0),
+                byStatus: statusCounts.reduce<Record<string, number>>((acc, item) => {
+                  acc[item.status] = item._count._all;
+                  return acc;
+                }, {}),
+              },
+            }
+          : {}),
+      });
+    }
+
     const bookings = await prisma.booking.findMany({
       where,
       include: {
@@ -249,7 +405,7 @@ export async function POST(request: NextRequest) {
     const { roomId, course, startTime, endTime, date, students, notes } = body;
 
     // Validações
-    if (!roomId || !course || !startTime || !endTime || !date || !students) {
+    if (!roomId || !course || !startTime || !endTime || !date) {
       return apiError('Campos obrigatórios faltando', { status: 400 });
     }
 
@@ -312,15 +468,17 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    if (currentUser.role !== 'ADMIN' && hoursDiff < 24) {
+    if (hoursDiff < minimumLeadHours) {
       return apiError('A reserva deve ser feita com no mínimo 24 horas de antecedência', {
         status: 400,
       });
     }
 
-    const studentsCount = Number(students);
+    const studentsCount = students === undefined || students === null || students === ''
+      ? 0
+      : Number(students);
 
-    if (!Number.isInteger(studentsCount) || studentsCount < 1) {
+    if (!Number.isInteger(studentsCount) || studentsCount < 0) {
       return apiError('Número de alunos inválido', { status: 400 });
     }
 
@@ -338,7 +496,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Verificar capacidade
-    if (studentsCount > room.capacity) {
+    if (room.capacity !== null && studentsCount > room.capacity) {
       return apiError(`Sala comporta apenas ${room.capacity} alunos`, { status: 400 });
     }
 
@@ -393,6 +551,12 @@ export async function POST(request: NextRequest) {
           },
         },
       },
+    });
+
+    await createNotification({
+      title: booking.status === 'APROVADA' ? 'Reserva criada e aprovada' : 'Nova solicitação de reserva',
+      message: `${booking.professor.name} reservou ${booking.room.name} para ${courseName} (${startTime}-${endTime}).`,
+      type: 'BOOKING',
     });
 
     return NextResponse.json(booking, { status: 201 });
