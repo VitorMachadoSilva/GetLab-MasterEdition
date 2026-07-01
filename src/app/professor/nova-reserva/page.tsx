@@ -9,6 +9,12 @@ import { LoadingSpinner } from '@/components/Loading';
 import { readApiError } from '@/lib/api-client';
 import DatePickerButton from '@/components/DatePickerButton';
 import SelectField from '@/components/SelectField';
+import {
+  addDaysToDateInput,
+  getDateInputValueInTimeZone,
+  getHoursUntilZonedBooking,
+  parseDateInputParts,
+} from '@/lib/business-time';
 
 interface Room {
   id: string;
@@ -53,45 +59,26 @@ const rangesOverlap = (
 ) => timeToMinutes(firstStart) < timeToMinutes(secondEnd) &&
   timeToMinutes(firstEnd) > timeToMinutes(secondStart);
 
-const formatLocalDateInputValue = (date: Date) => {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const day = String(date.getDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
-};
-
 const getLocalDateInputValue = (offsetDays = 0) => {
-  const date = new Date();
-  date.setDate(date.getDate() + offsetDays);
-  return formatLocalDateInputValue(date);
+  return addDaysToDateInput(getDateInputValueInTimeZone(), offsetDays);
 };
 
 const parseLocalDateInput = (date: string) => {
-  const [year, month, day] = date.split('-').map(Number);
-  return new Date(year, month - 1, day);
+  const parts = parseDateInputParts(date);
+  return parts ? new Date(Date.UTC(parts.year, parts.month - 1, parts.day)) : new Date(Number.NaN);
 };
-
-const getBookingDateTime = (date: string, time: string) => {
-  const selectedDate = parseLocalDateInput(date);
-  const [hours, minutes] = time.split(':').map(Number);
-  selectedDate.setHours(hours, minutes, 0, 0);
-  return selectedDate;
-};
-
-const getHoursUntilBooking = (date: string, time: string) =>
-  (getBookingDateTime(date, time).getTime() - Date.now()) / (1000 * 60 * 60);
 
 const isBeforeLocalDate = (date: string, minDate: string) =>
   parseLocalDateInput(date).getTime() < parseLocalDateInput(minDate).getTime();
 
 const getWeekStartDateInputValue = (selectedDate: string, minDate: string) => {
   const date = parseLocalDateInput(selectedDate);
-  const dayOfWeek = date.getDay();
+  const dayOfWeek = date.getUTCDay();
   const daysFromMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
 
-  date.setDate(date.getDate() - daysFromMonday);
+  date.setUTCDate(date.getUTCDate() - daysFromMonday);
 
-  const weekStart = formatLocalDateInputValue(date);
+  const weekStart = `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, '0')}-${String(date.getUTCDate()).padStart(2, '0')}`;
   return isBeforeLocalDate(weekStart, minDate) ? minDate : weekStart;
 };
 
@@ -100,14 +87,14 @@ const getDateOptions = (startDate: string, days = 7) => {
 
   return Array.from({ length: days }, (_, index) => {
     const date = new Date(firstDate);
-    date.setDate(firstDate.getDate() + index);
+    date.setUTCDate(firstDate.getUTCDate() + index);
 
-    const value = formatLocalDateInputValue(date);
+    const value = `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, '0')}-${String(date.getUTCDate()).padStart(2, '0')}`;
 
     return {
       value,
-      day: date.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }),
-      weekday: date.toLocaleDateString('pt-BR', { weekday: 'short' }).replace('.', ''),
+      day: date.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', timeZone: 'UTC' }),
+      weekday: date.toLocaleDateString('pt-BR', { weekday: 'short', timeZone: 'UTC' }).replace('.', ''),
     };
   });
 };
@@ -130,7 +117,7 @@ const getInitialFormData = () => ({
   course: '',
   startTime: '',
   endTime: '',
-  date: getLocalDateInputValue(1),
+  date: '',
   students: '',
   notes: '',
 });
@@ -140,6 +127,11 @@ export default function NovaReservaPage() {
   const router = useRouter();
   const [rooms, setRooms] = useState<Room[]>([]);
   const [bookings, setBookings] = useState<Booking[]>([]);
+  const [serverClock, setServerClock] = useState<{
+    nowMs: number;
+    fetchedAtMs: number;
+    tomorrow: string;
+  } | null>(null);
   const [loading, setLoading] = useState(true);
   const [availabilityLoading, setAvailabilityLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -148,7 +140,7 @@ export default function NovaReservaPage() {
   const [formData, setFormData] = useState(getInitialFormData);
 
   useEffect(() => {
-    fetchRooms();
+    initializePage();
   }, []);
 
   useEffect(() => {
@@ -158,6 +150,41 @@ export default function NovaReservaPage() {
       setBookings([]);
     }
   }, [formData.roomId, formData.date]);
+
+  const initializePage = async () => {
+    setLoading(true);
+    await Promise.all([fetchRooms(), fetchServerClock()]);
+    setLoading(false);
+  };
+
+  const fetchServerClock = async () => {
+    try {
+      const res = await fetch('/api/time');
+
+      if (!res.ok) {
+        throw new Error('time unavailable');
+      }
+
+      const data = await res.json();
+      const nowMs = new Date(data.now).getTime();
+      const tomorrow = String(data.tomorrow || getLocalDateInputValue(1));
+
+      setServerClock({
+        nowMs,
+        fetchedAtMs: performance.now(),
+        tomorrow,
+      });
+      setFormData((current) => (current.date ? current : { ...current, date: tomorrow }));
+    } catch (error) {
+      const fallbackTomorrow = getLocalDateInputValue(1);
+      setServerClock({
+        nowMs: Date.now(),
+        fetchedAtMs: performance.now(),
+        tomorrow: fallbackTomorrow,
+      });
+      setFormData((current) => (current.date ? current : { ...current, date: fallbackTomorrow }));
+    }
+  };
 
   const fetchRooms = async () => {
     try {
@@ -170,8 +197,6 @@ export default function NovaReservaPage() {
       }
     } catch (error) {
       toast.error('Não foi possível carregar as salas. Verifique sua conexão e tente novamente.');
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -333,7 +358,11 @@ export default function NovaReservaPage() {
 
   const selectedRoom = rooms.find(r => r.id === formData.roomId);
   const isDemo = session?.user?.role === 'DEMO';
-  const minDate = getLocalDateInputValue(1);
+  const getServerNowMs = () =>
+    serverClock ? serverClock.nowMs + (performance.now() - serverClock.fetchedAtMs) : Date.now();
+  const getHoursUntilBooking = (date: string, time: string) =>
+    getHoursUntilZonedBooking(date, time, getServerNowMs());
+  const minDate = serverClock?.tomorrow || getLocalDateInputValue(1);
   const selectedConflicts = getConflictingBookings(formData.startTime, formData.endTime);
   const availabilitySlots = startTimeSlots.map((startTime, index) => ({
     startTime,

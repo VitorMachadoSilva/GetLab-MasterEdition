@@ -5,6 +5,11 @@ import { cleanString, isValidCuid, readJsonObject } from '@/lib/api-validation';
 import { prisma } from '@/lib/prisma';
 import { demoWriteBlocked, isDemoRole } from '@/lib/demo-access';
 import { createNotification } from '@/lib/notifications';
+import {
+  getDateInputFromStoredDate,
+  getUtcDateRangeFromInput,
+  getZonedDateTimeFromInput,
+} from '@/lib/business-time';
 
 const validDecisionStatuses = ['APROVADA', 'REJEITADA'] as const;
 const approvalLimitHours = 2;
@@ -12,10 +17,7 @@ const autoCancelMessage =
   'Cancelamento automático: prazo de aprovação expirado. O administrador tinha até 2 horas antes do início da reserva para aprovar.';
 
 function getDateRange(date: Date) {
-  return {
-    startDate: new Date(date.getFullYear(), date.getMonth(), date.getDate(), 0, 0, 0, 0),
-    endDate: new Date(date.getFullYear(), date.getMonth(), date.getDate(), 23, 59, 59, 999),
-  };
+  return getUtcDateRangeFromInput(getDateInputFromStoredDate(date));
 }
 
 function appendNote(currentNote: string | null, label: string, reason: string) {
@@ -25,10 +27,7 @@ function appendNote(currentNote: string | null, label: string, reason: string) {
 }
 
 function getBookingDateTime(date: Date, time: string) {
-  const [hours, minutes] = time.split(':').map(Number);
-  const bookingDateTime = new Date(date);
-  bookingDateTime.setHours(hours, minutes, 0, 0);
-  return bookingDateTime;
+  return getZonedDateTimeFromInput(getDateInputFromStoredDate(date), time);
 }
 
 function appendAutoCancelNote(currentNote: string | null) {
@@ -88,7 +87,7 @@ export async function PATCH(
     }
 
     const approvalDeadlinePassed =
-      getBookingDateTime(currentBooking.date, currentBooking.startTime).getTime() -
+      (getBookingDateTime(currentBooking.date, currentBooking.startTime)?.getTime() ?? 0) -
         Date.now() <=
       approvalLimitHours * 60 * 60 * 1000;
 
@@ -141,7 +140,13 @@ export async function PATCH(
     }
 
     if (nextStatus === 'APROVADA') {
-      const { startDate, endDate } = getDateRange(currentBooking.date);
+      const dateRange = getDateRange(currentBooking.date);
+
+      if (!dateRange) {
+        return apiError('Data da reserva inválida', { status: 400 });
+      }
+
+      const { startDate, endDate } = dateRange;
       const approvedConflict = await prisma.booking.findFirst({
         where: {
           id: { not: params.id },
