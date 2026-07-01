@@ -86,4 +86,18 @@ test.describe('performance - APIs paginadas', () => {
     expect(result.contentType).toContain('text/csv');
     expect(result.text).toContain('"Data";"Horario";"Status";"Disciplina";"Sala";"Professor";"Alunos informados"');
   });
+
+  test('retorna horario oficial do servidor para regras de reserva', async ({ page }) => {
+    const result = await measureJsonEndpoint(page, '/api/time');
+
+    expect(result.status).toBe(200);
+    expect(result.body).toEqual(
+      expect.objectContaining({
+        now: expect.any(String),
+        timeZone: 'America/Sao_Paulo',
+        today: expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/),
+        tomorrow: expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/),
+      }),
+    );
+  });
 });

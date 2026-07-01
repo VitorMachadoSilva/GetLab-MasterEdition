@@ -8,6 +8,13 @@ import { prisma } from '@/lib/prisma';
 import { BookingStatus, UserRole } from '@prisma/client';
 import { canReadAdminViews, demoWriteBlocked, isDemoRole } from '@/lib/demo-access';
 import { createNotification } from '@/lib/notifications';
+import {
+  getDateInputFromStoredDate,
+  getUtcDateRangeFromInput,
+  getZonedDateTimeFromInput,
+  parseDateInputParts,
+  parseTimeToMinutes,
+} from '@/lib/business-time';
 
 const activeBookingStatuses = ['PENDENTE', 'APROVADA'] as const;
 const validBookingStatuses = ['PENDENTE', 'APROVADA', 'REJEITADA', 'CANCELADA'] as const;
@@ -28,46 +35,21 @@ function parsePositiveInt(value: string | null, fallback: number) {
 }
 
 function parseDateOnly(date: string) {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+  const parts = parseDateInputParts(date);
+
+  if (!parts) {
     return null;
   }
 
-  const [year, month, day] = date.split('-').map(Number);
-  const dateObj = new Date(year, month - 1, day);
-
-  if (
-    dateObj.getFullYear() !== year ||
-    dateObj.getMonth() !== month - 1 ||
-    dateObj.getDate() !== day
-  ) {
-    return null;
-  }
-
-  return {
-    dateObj,
-    startDate: new Date(year, month - 1, day, 0, 0, 0, 0),
-    endDate: new Date(year, month - 1, day, 23, 59, 59, 999),
-  };
+  return getUtcDateRangeFromInput(date);
 }
 
 function timeToMinutes(time: string) {
-  if (!/^\d{2}:\d{2}$/.test(time)) {
-    return Number.NaN;
-  }
-
-  const [hours, minutes] = time.split(':').map(Number);
-  if (hours < 0 || hours > 23 || minutes < 0 || minutes > 59) {
-    return Number.NaN;
-  }
-
-  return hours * 60 + minutes;
+  return parseTimeToMinutes(time);
 }
 
 function getBookingDateTime(date: Date, time: string) {
-  const [hours, minutes] = time.split(':').map(Number);
-  const bookingDateTime = new Date(date);
-  bookingDateTime.setHours(hours, minutes, 0, 0);
-  return bookingDateTime;
+  return getZonedDateTimeFromInput(getDateInputFromStoredDate(date), time);
 }
 
 function appendAutoCancelNote(currentNote: string | null) {
@@ -98,7 +80,7 @@ async function cancelExpiredPendingBookings() {
   });
 
   const expiredBookings = possibleExpiredBookings.filter(
-    (booking) => getBookingDateTime(booking.date, booking.startTime).getTime() <= limit.getTime()
+    (booking) => (getBookingDateTime(booking.date, booking.startTime)?.getTime() ?? Number.POSITIVE_INFINITY) <= limit.getTime()
   );
 
   if (expiredBookings.length === 0) {
@@ -457,8 +439,11 @@ export async function POST(request: NextRequest) {
       return apiError('Reservas devem ocorrer entre 07:00 e 22:00', { status: 400 });
     }
 
-    const bookingDateTime = new Date(parsedDate.dateObj);
-    bookingDateTime.setHours(Math.floor(startMinutes / 60), startMinutes % 60, 0, 0);
+    const bookingDateTime = getZonedDateTimeFromInput(date, startTime);
+
+    if (!bookingDateTime) {
+      return apiError('Data ou horário inválido', { status: 400 });
+    }
 
     const hoursDiff = (bookingDateTime.getTime() - Date.now()) / (1000 * 60 * 60);
 

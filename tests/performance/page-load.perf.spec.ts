@@ -35,4 +35,8 @@ test.describe('performance - carregamento de telas administrativas', () => {
   test('abre relatorios dentro do limite', async ({ page }) => {
     await expectFastPageLoad(page, '/admin/relatorios');
   });
+
+  test('abre nova reserva com horario do servidor dentro do limite', async ({ page }) => {
+    await expectFastPageLoad(page, '/professor/nova-reserva');
+  });
 });
